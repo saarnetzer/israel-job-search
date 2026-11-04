@@ -1,0 +1,6 @@
+{"TotalPagesNumber": 1, "ResultList": [
+ {"Code": "55501", "Company": {"CompanyDisplayName": "בנק הדוגמה"},
+  "JobContent": {"Name": "אנליסט/ית נתונים", "Description": "<p>ניתוח נתונים ב-SQL</p>", "Requirements": "<ul><li>ניסיון של שנה</li></ul>",
+                 "Addresses": [{"City": "רמת גן"}], "Scopes": [{"Name": "משרה מלאה"}]},
+  "JobInfo": {"Link": "/job/55501/abc/", "Date": "2026-11-02T10:00:00"}}
+]}

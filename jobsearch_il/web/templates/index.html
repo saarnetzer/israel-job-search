@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>חיפוש עבודה בישראל</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#667085; --accent:#2457d6; --border:#e4e7ec; --new:#0f9d58; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --card:#1b2029; --text:#e6e9ef; --muted:#98a2b3; --accent:#7aa2ff; --border:#2c3340; --new:#4cd38a; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: system-ui, "Segoe UI", Arial, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 16px 8px; max-width:1100px; margin:auto; }
+  h1 { margin:0 0 4px; font-size:26px; }
+  .sub { color:var(--muted); font-size:14px; }
+  main { max-width:1100px; margin:auto; padding:0 16px 40px; }
+  form { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; display:grid; gap:12px;
+         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
+  input[type=text], input[type=number], select { padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:15px; background:var(--bg); color:var(--text); }
+  .wide { grid-column: 1 / -1; }
+  .checks { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:14px; color:var(--text); }
+  .checks label { flex-direction:row; align-items:center; color:var(--text); font-size:14px; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; }
+  button { padding:10px 18px; border-radius:8px; border:0; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .summary { margin:16px 0 8px; color:var(--muted); font-size:14px; }
+  .err { color:#d92d20; font-size:13px; }
+  .job { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+  .job h3 { margin:0 0 6px; font-size:17px; }
+  .job h3 a { color:var(--accent); text-decoration:none; }
+  .meta { font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .desc { font-size:14px; margin-top:8px; line-height:1.5; max-height:4.5em; overflow:hidden; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--border); }
+  .tag.new { color:var(--new); border-color:var(--new); }
+  .jobactions { margin-top:8px; display:flex; gap:8px; }
+  .jobactions button { padding:4px 10px; font-size:12px; background:transparent; color:var(--muted); border:1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔎 חיפוש עבודה בישראל</h1>
+  <div class="sub">חיפוש אחד בכל אתרי הדרושים: {% for n, s in sources.items() if n in active %}{{ s.display_name }}{% if not loop.last %} · {% endif %}{% endfor %}
+  {% if stats %} — במאגר: {{ stats.values()|sum }} משרות{% endif %}</div>
+</header>
+<main>
+<form method="get" action="/">
+  <input type="hidden" name="submitted" value="1">
+  <label class="wide">מילות חיפוש (מופרדות בפסיק)
+    <input type="text" name="q" value="{{ f.q }}" placeholder="למשל: python, backend או מנהלת חשבונות"></label>
+  <label>מיקום (עיר או אזור, בפסיקים)
+    <input type="text" name="location" value="{{ f.location }}" list="regions" placeholder="מרכז, חיפה, Tel Aviv"></label>
+  <datalist id="regions">{% for r in regions %}<option value="{{ r }}">{% endfor %}</datalist>
+  <label>היקף משרה
+    <select name="job_type">
+      {% for v, t in [("", "הכל"), ("משרה מלאה", "מלאה"), ("משרה חלקית", "חלקית"), ("סטודנט", "סטודנטים"), ("משמרות", "משמרות"), ("פרילנס", "פרילנס")] %}
+      <option value="{{ v }}" {% if f.job_type == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select></label>
+  <label>פורסם בימים האחרונים
+    <input type="number" name="days" min="1" value="{{ f.days or '' }}" placeholder="למשל 7"></label>
+  <label>מילים לפסילה
+    <input type="text" name="exclude" value="{{ f.exclude }}" placeholder="senior, team lead"></label>
+  <label>חברות לפסילה
+    <input type="text" name="exclude_company" value="{{ f.exclude_company }}" placeholder="חברות השמה..."></label>
+  <label>שכר מינימלי (₪ לחודש)
+    <input type="number" name="min_salary" min="0" step="500" value="{{ f.min_salary or '' }}"></label>
+  <label>מקסימום שנות ניסיון
+    <input type="number" name="max_exp" min="0" value="{{ f.max_exp if f.max_exp is not none else '' }}"></label>
+  <label>עמודים לסריקה בכל אתר
+    <input type="number" name="pages" min="1" max="10" value="{{ f.pages }}"></label>
+  <div class="checks wide">
+    <label><input type="checkbox" name="remote" value="true" {% if f.remote %}checked{% endif %}> רק מהבית/היברידי</label>
+    <label><input type="checkbox" name="match_all" value="true" {% if f.match_all %}checked{% endif %}> כל המילים חייבות להופיע</label>
+    <label><input type="checkbox" name="title_only" value="true" {% if f.title_only %}checked{% endif %}> חיפוש בכותרת בלבד</label>
+  </div>
+  <div class="checks wide"><span style="color:var(--muted)">אתרים:</span>
+    {% for n, s in sources.items() if n in active %}
+    <label><input type="checkbox" name="source" value="{{ n }}" {% if not f.source or n in f.source %}checked{% endif %}> {{ s.display_name }}</label>
+    {% endfor %}
+  </div>
+  <div class="actions wide">
+    <button type="submit" name="live" value="true">סרוק את האתרים עכשיו</button>
+    <button type="submit" name="live" value="false" class="secondary">חפש במשרות השמורות</button>
+  </div>
+</form>
+
+{% if result %}
+  <div class="summary">
+    נמצאו {{ result.jobs|length }} משרות
+    {% if result.scraped is not none %} מתוך {{ result.scraped }} שנסרקו ({% for k, v in result.per_source.items() %}{{ k }}: {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
+    {% if result.new %} · {{ result.new|length }} חדשות{% endif %}
+  </div>
+  {% for name, e in result.errors.items() %}<div class="err">⚠ {{ name }}: {{ e }}</div>{% endfor %}
+  {% for j in result.jobs %}
+  <div class="job" id="job-{{ j.uid }}">
+    <h3><a href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
+      {% if j.uid in result.new %}<span class="tag new">חדש</span>{% endif %}
+      {% if j.extra.status and j.extra.status != 'new' %}<span class="tag">{{ {'saved':'שמור','applied':'הגשתי','hidden':'מוסתר'}[j.extra.status] }}</span>{% endif %}
+    </h3>
+    <div class="meta">
+      {% if j.company %}<span>🏢 {{ j.company }}</span>{% endif %}
+      {% if j.location %}<span>📍 {{ j.location }}</span>{% endif %}
+      {% if j.job_type %}<span>⏱ {{ j.job_type }}</span>{% endif %}
+      {% if j.salary %}<span>₪ {{ j.salary }}</span>{% endif %}
+      {% if j.posted_at %}<span>📅 {{ j.posted_at.strftime('%d/%m/%Y') }}</span>{% endif %}
+      <span class="tag">{{ sources[j.source].display_name if j.source in sources else j.source }}</span>
+      {% for o in j.extra.get('also_on', []) %}<a class="tag" href="{{ o.url }}" target="_blank" rel="noopener">גם ב-{{ o.source }}</a>{% endfor %}
+    </div>
+    {% if j.description %}<div class="desc">{{ j.description[:400] }}</div>{% endif %}
+    <div class="jobactions">
+      <button onclick="mark('{{ j.uid }}','saved',this)">⭐ שמור</button>
+      <button onclick="mark('{{ j.uid }}','applied',this)">✅ הגשתי</button>
+      <button onclick="mark('{{ j.uid }}','hidden',this)">🙈 הסתר</button>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+</main>
+<script>
+async function mark(uid, status, btn) {
+  const r = await fetch(`/api/jobs/${uid}/status/${status}`, {method: 'POST'});
+  if (!r.ok) { btn.textContent = 'שגיאה'; return; }
+  if (status === 'hidden') document.getElementById('job-' + uid).remove();
+  else btn.textContent = status === 'saved' ? '⭐ נשמר' : '✅ סומן';
+}
+</script>
+</body>
+</html>

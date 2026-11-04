@@ -1,0 +1,43 @@
+# העתיקו ל-config.yaml וערכו.  cp config.example.yaml config.yaml
+
+database: jobs.db
+
+http:
+  min_delay: 1.5        # שניות בין בקשות לאותו אתר (נימוס - לא להעמיס)
+  retries: 3
+  timeout: 20
+  respect_robots: false # true = לכבד robots.txt (חלק מהאתרים ייחסמו)
+  # proxy: http://user:pass@host:port
+
+sources:
+  drushim:   { enabled: true }
+  alljobs:   { enabled: true }
+  jobmaster: { enabled: true }
+  linkedin:  { enabled: true, location: Israel }
+
+  # --- מערכות גיוס של חברות (API יציב). רק משרות בישראל/מרחוק נשמרות ---
+  greenhouse:
+    include_remote: true
+    companies: []          # שמות לוח מ-boards.greenhouse.io/<name>, למשל: [companyname]
+  lever:
+    companies: []          # שמות מ-jobs.lever.co/<name>
+  comeet:
+    companies: []
+    #  - name: "Some Startup"
+    #    uid: "XX.XXX"           # מופיעים בקוד המקור של דף הקריירה של החברה
+    #    token: "XXXXXXXXXXXXXXXX"
+  careers:
+    urls: []               # כל דף קריירה עם JSON-LD JobPosting
+
+# חיפושים שמורים: jobsearch-il saved  -> מציג רק משרות שלא נראו קודם
+saved_searches:
+  python-center:
+    keywords: [python, backend]
+    locations: [מרכז]
+    exclude_keywords: [senior, "team lead", ראש צוות]
+    max_experience_years: 3
+    posted_within_days: 7
+  student-haifa:
+    keywords: [סטודנט]
+    locations: [חיפה]
+    job_types: [student]

@@ -1,0 +1,68 @@
+from jobsearch_il.engine import JobSearchEngine
+from jobsearch_il.models import Job, SearchCriteria
+from jobsearch_il.sources.base import Source
+from jobsearch_il.storage import JobStore
+
+
+class FakeSource(Source):
+    name = "fake"
+    display_name = "Fake"
+    calls: list = []
+
+    def search(self, criteria):
+        FakeSource.calls.append(criteria.query)
+        yield Job(source="fake", title="Python Developer", url="https://f/1", company="A", location="Haifa")
+        yield Job(source="fake", title="Java Developer", url="https://f/2", company="B", location="Tel Aviv")
+
+
+class BrokenSource(Source):
+    name = "broken"
+
+    def search(self, criteria):
+        raise RuntimeError("site down")
+        yield
+
+
+def make(tmp_path):
+    return JobSearchEngine({}, store=JobStore(tmp_path / "t.db"), sources={"fake": FakeSource, "broken": BrokenSource})
+
+
+def test_search_filters_stores_and_reports_errors(tmp_path):
+    eng = make(tmp_path)
+    res = eng.search(SearchCriteria(keywords=["python"], locations=["צפון"]))
+    assert [j.title for j in res.jobs] == ["Python Developer"]
+    assert len(res.new_jobs) == 1
+    assert "broken" in res.errors
+    # second run: nothing new
+    res2 = eng.search(SearchCriteria(keywords=["python"]))
+    assert res2.new_jobs == []
+    # offline search over the DB
+    assert len(eng.search_stored(SearchCriteria(keywords=["java"]))) == 1
+
+
+def test_or_keywords_query_each(tmp_path):
+    FakeSource.calls.clear()
+    make(tmp_path).search(SearchCriteria(keywords=["python", "java"], sources=["fake"]))
+    assert sorted(FakeSource.calls) == ["java", "python"]
+
+
+def test_status(tmp_path):
+    eng = make(tmp_path)
+    res = eng.search(SearchCriteria(sources=["fake"]))
+    uid = res.jobs[0].uid
+    assert eng.store.set_status(uid, "hidden")
+    assert uid not in {j.uid for j in eng.search_stored(SearchCriteria())}
+
+
+def test_web(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from jobsearch_il.web.app import create_app
+
+    client = TestClient(create_app(engine=make(tmp_path)))
+    r = client.get("/api/search", params={"live": True, "q": "python", "source": "fake"})
+    assert r.status_code == 200 and r.json()["count"] == 1
+    html = client.get("/", params={"submitted": 1, "q": "java"}).text
+    assert "Java Developer" in html and 'dir="rtl"' in html
+    uid = r.json()["jobs"][0]["uid"]
+    assert client.post(f"/api/jobs/{uid}/status/saved").json() == {"ok": True}
