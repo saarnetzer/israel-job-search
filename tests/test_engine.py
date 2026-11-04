@@ -62,7 +62,14 @@ def test_web(tmp_path):
     client = TestClient(create_app(engine=make(tmp_path)))
     r = client.get("/api/search", params={"live": True, "q": "python", "source": "fake"})
     assert r.status_code == 200 and r.json()["count"] == 1
-    html = client.get("/", params={"submitted": 1, "q": "java"}).text
-    assert "Java Developer" in html and 'dir="rtl"' in html
+    assert r.json()["jobs"][0]["is_new"] is True
+    html = client.get("/").text
+    assert 'dir="rtl"' in html and '"fake"' in html
+    stored = client.get("/api/search", params={"q": "java"}).json()
+    assert [j["title"] for j in stored["jobs"]] == ["Java Developer"]
     uid = r.json()["jobs"][0]["uid"]
     assert client.post(f"/api/jobs/{uid}/status/saved").json() == {"ok": True}
+    saved = client.get("/api/search", params={"status": "saved"}).json()
+    assert [j["uid"] for j in saved["jobs"]] == [uid]
+    check = client.get("/api/check").json()
+    assert check["fake"]["ok"] is True and check["broken"]["ok"] is False

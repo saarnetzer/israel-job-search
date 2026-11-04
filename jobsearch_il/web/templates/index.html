@@ -4,123 +4,262 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>חיפוש עבודה בישראל</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#667085; --accent:#2457d6; --border:#e4e7ec; --new:#0f9d58; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --card:#1b2029; --text:#e6e9ef; --muted:#98a2b3; --accent:#7aa2ff; --border:#2c3340; --new:#4cd38a; } }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui, "Segoe UI", Arial, sans-serif; background:var(--bg); color:var(--text); }
-  header { padding:20px 16px 8px; max-width:1100px; margin:auto; }
-  h1 { margin:0 0 4px; font-size:26px; }
-  .sub { color:var(--muted); font-size:14px; }
-  main { max-width:1100px; margin:auto; padding:0 16px 40px; }
-  form { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; display:grid; gap:12px;
-         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
-  input[type=text], input[type=number], select { padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:15px; background:var(--bg); color:var(--text); }
-  .wide { grid-column: 1 / -1; }
-  .checks { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:14px; color:var(--text); }
-  .checks label { flex-direction:row; align-items:center; color:var(--text); font-size:14px; }
-  .actions { display:flex; gap:10px; flex-wrap:wrap; }
-  button { padding:10px 18px; border-radius:8px; border:0; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
-  button.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  .summary { margin:16px 0 8px; color:var(--muted); font-size:14px; }
-  .err { color:#d92d20; font-size:13px; }
-  .job { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
-  .job h3 { margin:0 0 6px; font-size:17px; }
-  .job h3 a { color:var(--accent); text-decoration:none; }
-  .meta { font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 14px; }
-  .desc { font-size:14px; margin-top:8px; line-height:1.5; max-height:4.5em; overflow:hidden; }
-  .tag { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--border); }
-  .tag.new { color:var(--new); border-color:var(--new); }
-  .jobactions { margin-top:8px; display:flex; gap:8px; }
-  .jobactions button { padding:4px 10px; font-size:12px; background:transparent; color:var(--muted); border:1px solid var(--border); }
+:root{--bg:#f4f6fa;--card:#fff;--text:#18202f;--muted:#5f6b7f;--accent:#2b5bdb;--accent-soft:#e8eefc;--border:#e2e6ee;--ok:#12805c;--ok-soft:#e3f5ee;--warn:#b54708;--warn-soft:#fdf0e3;--err:#c4320a;--shadow:0 1px 2px rgba(16,24,40,.06)}
+@media (prefers-color-scheme:dark){:root{--bg:#0f131a;--card:#181e28;--text:#e7ebf2;--muted:#9aa5b8;--accent:#7ea2ff;--accent-soft:#1f2a44;--border:#283142;--ok:#4cc995;--ok-soft:#14352a;--warn:#f5a454;--warn-soft:#3a2716;--err:#ff8a6b;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;font-family:Heebo,system-ui,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+a{color:var(--accent)}
+.wrap{max-width:1080px;margin:auto;padding:0 16px}
+header{padding:24px 0 12px}
+h1{margin:0;font-size:28px;font-weight:700}
+.sub{color:var(--muted);margin-top:4px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.searchrow{display:grid;grid-template-columns:2fr 1.3fr auto;gap:10px}
+@media (max-width:720px){.searchrow{grid-template-columns:1fr}}
+input[type=text],input[type=number],select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--bg);color:var(--text)}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid transparent;padding:11px 18px}
+.primary{background:var(--accent);color:#fff;font-weight:500}
+.primary:disabled{opacity:.6;cursor:wait}
+.ghost{background:transparent;border-color:var(--border);color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{border:1px solid var(--border);background:var(--bg);color:var(--text);padding:5px 12px;border-radius:99px;font-size:13px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+details{margin-top:12px}
+summary{cursor:pointer;color:var(--accent);font-size:14px}
+.adv{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:12px}
+.adv label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.checks{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:14px}
+.checks label{display:flex;align-items:center;gap:6px}
+.progress{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.pstat{font-size:13px;padding:5px 10px;border-radius:8px;background:var(--card);border:1px solid var(--border);display:flex;gap:6px;align-items:center}
+.pstat.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.pstat.err{background:var(--warn-soft);color:var(--warn);border-color:transparent;cursor:help}
+.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:20px 0 10px}
+.tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:3px}
+.tabs button{padding:6px 12px;border-radius:8px;font-size:14px;background:transparent;color:var(--muted)}
+.tabs button.on{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.tools{display:flex;gap:8px;align-items:center}
+.tools input,.tools select{padding:7px 10px;width:auto;font-size:14px}
+.count{color:var(--muted);font-size:14px}
+.job{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.job h3{margin:0 0 6px;font-size:17px;font-weight:500;line-height:1.4}
+.job h3 a{text-decoration:none}
+.meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);text-decoration:none;white-space:nowrap}
+.badge.new{color:var(--ok);border-color:var(--ok)}
+.badge.src{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.desc{margin-top:8px;font-size:14px;line-height:1.6;white-space:pre-line;max-height:4.8em;overflow:hidden;position:relative}
+.desc.open{max-height:none}
+.jobfoot{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.jobfoot button{padding:5px 10px;font-size:13px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px}
+.jobfoot button.on{color:var(--accent);border-color:var(--accent)}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0}
 </style>
 </head>
 <body>
+<div class="wrap">
 <header>
   <h1>🔎 חיפוש עבודה בישראל</h1>
-  <div class="sub">חיפוש אחד בכל אתרי הדרושים: {% for n, s in sources.items() if n in active %}{{ s.display_name }}{% if not loop.last %} · {% endif %}{% endfor %}
-  {% if stats %} — במאגר: {{ stats.values()|sum }} משרות{% endif %}</div>
+  <div class="sub" id="sub"></div>
 </header>
-<main>
-<form method="get" action="/">
-  <input type="hidden" name="submitted" value="1">
-  <label class="wide">מילות חיפוש (מופרדות בפסיק)
-    <input type="text" name="q" value="{{ f.q }}" placeholder="למשל: python, backend או מנהלת חשבונות"></label>
-  <label>מיקום (עיר או אזור, בפסיקים)
-    <input type="text" name="location" value="{{ f.location }}" list="regions" placeholder="מרכז, חיפה, Tel Aviv"></label>
-  <datalist id="regions">{% for r in regions %}<option value="{{ r }}">{% endfor %}</datalist>
-  <label>היקף משרה
-    <select name="job_type">
-      {% for v, t in [("", "הכל"), ("משרה מלאה", "מלאה"), ("משרה חלקית", "חלקית"), ("סטודנט", "סטודנטים"), ("משמרות", "משמרות"), ("פרילנס", "פרילנס")] %}
-      <option value="{{ v }}" {% if f.job_type == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
-    </select></label>
-  <label>פורסם בימים האחרונים
-    <input type="number" name="days" min="1" value="{{ f.days or '' }}" placeholder="למשל 7"></label>
-  <label>מילים לפסילה
-    <input type="text" name="exclude" value="{{ f.exclude }}" placeholder="senior, team lead"></label>
-  <label>חברות לפסילה
-    <input type="text" name="exclude_company" value="{{ f.exclude_company }}" placeholder="חברות השמה..."></label>
-  <label>שכר מינימלי (₪ לחודש)
-    <input type="number" name="min_salary" min="0" step="500" value="{{ f.min_salary or '' }}"></label>
-  <label>מקסימום שנות ניסיון
-    <input type="number" name="max_exp" min="0" value="{{ f.max_exp if f.max_exp is not none else '' }}"></label>
-  <label>עמודים לסריקה בכל אתר
-    <input type="number" name="pages" min="1" max="10" value="{{ f.pages }}"></label>
-  <div class="checks wide">
-    <label><input type="checkbox" name="remote" value="true" {% if f.remote %}checked{% endif %}> רק מהבית/היברידי</label>
-    <label><input type="checkbox" name="match_all" value="true" {% if f.match_all %}checked{% endif %}> כל המילים חייבות להופיע</label>
-    <label><input type="checkbox" name="title_only" value="true" {% if f.title_only %}checked{% endif %}> חיפוש בכותרת בלבד</label>
+
+<form class="panel" id="form" autocomplete="off">
+  <div class="searchrow">
+    <input type="text" name="q" placeholder="מה מחפשים? למשל: python, מנהלת חשבונות, נהג" aria-label="מילות חיפוש">
+    <input type="text" name="location" placeholder="איפה? עיר או אזור (ריק = כל הארץ)" list="regions" aria-label="מיקום">
+    <button class="primary" type="submit" id="go">חיפוש</button>
   </div>
-  <div class="checks wide"><span style="color:var(--muted)">אתרים:</span>
-    {% for n, s in sources.items() if n in active %}
-    <label><input type="checkbox" name="source" value="{{ n }}" {% if not f.source or n in f.source %}checked{% endif %}> {{ s.display_name }}</label>
-    {% endfor %}
-  </div>
-  <div class="actions wide">
-    <button type="submit" name="live" value="true">סרוק את האתרים עכשיו</button>
-    <button type="submit" name="live" value="false" class="secondary">חפש במשרות השמורות</button>
-  </div>
+  <datalist id="regions"></datalist>
+  <div class="chips" id="regionChips"></div>
+
+  <details id="advBox">
+    <summary>סינון מתקדם</summary>
+    <div class="adv">
+      <label>היקף משרה
+        <select name="job_type">
+          <option value="">הכל</option><option value="משרה מלאה">מלאה</option><option value="משרה חלקית">חלקית</option>
+          <option value="סטודנט">סטודנטים</option><option value="משמרות">משמרות</option><option value="פרילנס">פרילנס</option>
+          <option value="התמחות">התמחות</option>
+        </select></label>
+      <label>פורסם ב־
+        <select name="days"><option value="">כל זמן</option><option value="1">יום אחרון</option><option value="3">3 ימים</option>
+          <option value="7">שבוע</option><option value="14">שבועיים</option><option value="30">חודש</option></select></label>
+      <label>מקסימום שנות ניסיון
+        <select name="max_exp"><option value="">לא משנה</option><option value="0">ללא ניסיון</option><option value="1">עד שנה</option>
+          <option value="2">עד 2</option><option value="3">עד 3</option><option value="5">עד 5</option></select></label>
+      <label>שכר מינימלי (₪ לחודש)
+        <input type="number" name="min_salary" min="0" step="500" placeholder="רק כשהשכר מפורסם"></label>
+      <label>מילים לפסילה
+        <input type="text" name="exclude" placeholder="senior, ראש צוות"></label>
+      <label>חברות לפסילה
+        <input type="text" name="exclude_company" placeholder="למשל חברות השמה"></label>
+      <label>עמודים בכל אתר
+        <select name="pages"><option>1</option><option selected>2</option><option>3</option><option>5</option></select></label>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" name="remote"> רק מהבית / היברידי</label>
+      <label><input type="checkbox" name="match_all"> כל המילים חייבות להופיע</label>
+      <label><input type="checkbox" name="title_only"> חיפוש בכותרת בלבד</label>
+    </div>
+    <div class="checks" id="sourceChecks"></div>
+  </details>
+  <div class="progress" id="progress"></div>
 </form>
 
-{% if result %}
-  <div class="summary">
-    נמצאו {{ result.jobs|length }} משרות
-    {% if result.scraped is not none %} מתוך {{ result.scraped }} שנסרקו ({% for k, v in result.per_source.items() %}{{ k }}: {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
-    {% if result.new %} · {{ result.new|length }} חדשות{% endif %}
+<div class="toolbar" id="toolbar" hidden>
+  <div class="tabs" role="tablist">
+    <button data-tab="results" class="on">תוצאות</button>
+    <button data-tab="saved">⭐ שמורות</button>
+    <button data-tab="applied">✅ הגשתי</button>
   </div>
-  {% for name, e in result.errors.items() %}<div class="err">⚠ {{ name }}: {{ e }}</div>{% endfor %}
-  {% for j in result.jobs %}
-  <div class="job" id="job-{{ j.uid }}">
-    <h3><a href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
-      {% if j.uid in result.new %}<span class="tag new">חדש</span>{% endif %}
-      {% if j.extra.status and j.extra.status != 'new' %}<span class="tag">{{ {'saved':'שמור','applied':'הגשתי','hidden':'מוסתר'}[j.extra.status] }}</span>{% endif %}
-    </h3>
-    <div class="meta">
-      {% if j.company %}<span>🏢 {{ j.company }}</span>{% endif %}
-      {% if j.location %}<span>📍 {{ j.location }}</span>{% endif %}
-      {% if j.job_type %}<span>⏱ {{ j.job_type }}</span>{% endif %}
-      {% if j.salary %}<span>₪ {{ j.salary }}</span>{% endif %}
-      {% if j.posted_at %}<span>📅 {{ j.posted_at.strftime('%d/%m/%Y') }}</span>{% endif %}
-      <span class="tag">{{ sources[j.source].display_name if j.source in sources else j.source }}</span>
-      {% for o in j.extra.get('also_on', []) %}<a class="tag" href="{{ o.url }}" target="_blank" rel="noopener">גם ב-{{ o.source }}</a>{% endfor %}
-    </div>
-    {% if j.description %}<div class="desc">{{ j.description[:400] }}</div>{% endif %}
-    <div class="jobactions">
-      <button onclick="mark('{{ j.uid }}','saved',this)">⭐ שמור</button>
-      <button onclick="mark('{{ j.uid }}','applied',this)">✅ הגשתי</button>
-      <button onclick="mark('{{ j.uid }}','hidden',this)">🙈 הסתר</button>
-    </div>
+  <div class="tools">
+    <input type="text" id="quick" placeholder="סינון מהיר…" aria-label="סינון מהיר">
+    <select id="sort" aria-label="מיון"><option value="date">החדשות ביותר</option><option value="company">לפי חברה</option><option value="source">לפי אתר</option></select>
   </div>
-  {% endfor %}
-{% endif %}
-</main>
+</div>
+<div class="count" id="count"></div>
+<div id="results"></div>
+<footer>התוצאות נאספות מאתרי הדרושים ומקושרות למודעה המקורית. משרה שמופיעה בכמה אתרים מוצגת פעם אחת.</footer>
+</div>
+
 <script>
+const BOOT = {{ boot|safe }};
+const $ = s => document.querySelector(s);
+const form = $('#form');
+const NAMES = Object.fromEntries(BOOT.sources.map(s => [s.name, s.display_name]));
+const ACTIVE = BOOT.sources.filter(s => s.active);
+let jobs = [], newSet = new Set(), tab = 'results', lastParams = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const total = Object.values(BOOT.stats).reduce((a, b) => a + b, 0);
+$('#sub').innerHTML = `חיפוש אחד ב־${ACTIVE.map(s => '<bdi>' + esc(s.display_name) + '</bdi>').join(', ')}` + (total ? ` · ${total.toLocaleString('he-IL')} משרות במאגר` : '');
+
+BOOT.regions.forEach(r => { $('#regions').insertAdjacentHTML('beforeend', `<option value="${esc(r)}">`); });
+['מרכז','שרון','צפון','דרום','ירושלים והסביבה','שפלה','remote'].forEach(r => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'chip';
+  b.textContent = r === 'remote' ? '🏠 מהבית' : r;
+  b.onclick = () => {
+    const inp = form.location, parts = inp.value.split(',').map(x => x.trim()).filter(Boolean);
+    const i = parts.indexOf(r); i >= 0 ? parts.splice(i, 1) : parts.push(r);
+    inp.value = parts.join(', '); syncChips();
+  };
+  b.dataset.val = r; $('#regionChips').append(b);
+});
+function syncChips() {
+  const parts = form.location.value.split(',').map(x => x.trim());
+  document.querySelectorAll('#regionChips .chip').forEach(c => c.classList.toggle('on', parts.includes(c.dataset.val)));
+}
+form.location.addEventListener('input', syncChips);
+
+$('#sourceChecks').innerHTML = '<span style="color:var(--muted)">אתרים:</span>' + BOOT.sources.map(s =>
+  `<label title="${s.active ? '' : 'דורש הגדרה ב-config.yaml'}"><input type="checkbox" name="src" value="${s.name}" ${s.active ? 'checked' : 'disabled'}> ${esc(s.display_name)}</label>`).join('');
+
+// remember the last search in this browser
+try { const saved = JSON.parse(localStorage.getItem('jsil-form') || '{}');
+  for (const [k, v] of Object.entries(saved)) { const el = form.elements[k]; if (!el || el.length) continue;
+    el.type === 'checkbox' ? el.checked = v : el.value = v; } syncChips(); } catch (e) {}
+
+function params() {
+  const p = new URLSearchParams();
+  const store = {};
+  for (const el of form.elements) {
+    if (!el.name || el.name === 'src') continue;
+    const v = el.type === 'checkbox' ? el.checked : el.value.trim();
+    store[el.name] = v;
+    if (v === '' || v === false) continue;
+    p.set(el.name, v === true ? 'true' : v);
+  }
+  try { localStorage.setItem('jsil-form', JSON.stringify(store)); } catch (e) {}
+  return p;
+}
+const selectedSources = () => [...form.querySelectorAll('input[name=src]:checked')].map(x => x.value);
+
+form.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const p = params(); lastParams = p;
+  const srcs = selectedSources();
+  if (!srcs.length) { alert('בחרו לפחות אתר אחד'); return; }
+  $('#go').disabled = true; newSet = new Set();
+  $('#progress').innerHTML = srcs.map(s => `<span class="pstat" id="p-${s}"><span class="spin"></span><bdi>${esc(NAMES[s])}</bdi></span>`).join('');
+  // scan each site in parallel so slow/blocked sites don't hold up the others
+  await Promise.all(srcs.map(async s => {
+    const q = new URLSearchParams(p); q.set('live', 'true'); q.set('source', s);
+    const el = $('#p-' + s);
+    try {
+      const r = await fetch('/api/search?' + q); const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.status);
+      d.jobs.filter(j => j.is_new).forEach(j => newSet.add(j.uid));
+      if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: שגיאה (העבירו עכבר לפרטים)</span>`; el.title = d.errors[s]; }
+      else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ <bdi>${esc(NAMES[s])}</bdi>: ${d.per_source[s] ?? 0} נסרקו, ${d.count} מתאימות</span>`; }
+    } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi></span>`; el.title = String(e); }
+  }));
+  // merged + deduped view straight from the local database
+  const q = new URLSearchParams(p); srcs.forEach(s => q.append('source', s));
+  await load(q, 'results');
+  $('#go').disabled = false;
+});
+
+async function load(q, which) {
+  tab = which;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === which));
+  const r = await fetch('/api/search?' + q); const d = await r.json();
+  jobs = d.jobs; $('#toolbar').hidden = false; render();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  const t = b.dataset.tab;
+  if (t === 'results') { if (lastParams) { const q = new URLSearchParams(lastParams); selectedSources().forEach(s => q.append('source', s)); load(q, t); } else { jobs = []; tab = t; render(); } }
+  else load(new URLSearchParams({status: t}), t);
+});
+$('#quick').oninput = render; $('#sort').onchange = render;
+
+function render() {
+  const f = $('#quick').value.trim().toLowerCase(), sort = $('#sort').value;
+  let list = jobs.filter(j => !f || [j.title, j.company, j.location, j.description].join(' ').toLowerCase().includes(f));
+  const key = { date: j => -(Date.parse(j.posted_at) || 0), company: j => j.company || 'תתת', source: j => j.source }[sort];
+  list = [...list].sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : 0; });
+  const nNew = list.filter(j => newSet.has(j.uid)).length;
+  $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם` : '') : '';
+  if (!list.length) { $('#results').innerHTML = `<div class="empty">${tab === 'results' ? 'לא נמצאו משרות. נסו מילים אחרות או הרחיבו את האזור.' : 'אין עדיין משרות ברשימה הזו.'}</div>`; return; }
+  $('#results').innerHTML = list.map(card).join('');
+}
+
+function card(j) {
+  const date = j.posted_at ? new Date(j.posted_at).toLocaleDateString('he-IL') : '';
+  const st = j.extra?.status;
+  const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener">גם ב־${esc(NAMES[o.source] || o.source)}</a>`).join('');
+  return `<article class="job" id="j-${j.uid}">
+    <h3><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+      ${newSet.has(j.uid) ? '<span class="badge new">חדש</span>' : ''}</h3>
+    <div class="meta">
+      ${j.company ? `<span>🏢 ${esc(j.company)}</span>` : ''}
+      ${j.location ? `<span>📍 ${esc(j.location)}</span>` : ''}
+      ${j.job_type ? `<span>⏱ ${esc(j.job_type)}</span>` : ''}
+      ${j.salary ? `<span>₪ ${esc(j.salary)}</span>` : ''}
+      ${date ? `<span>📅 ${date}</span>` : ''}
+      <bdi class="badge src">${esc(NAMES[j.source] || j.source)}</bdi>${also}
+    </div>
+    ${j.description ? `<div class="desc" onclick="this.classList.toggle('open')" title="לחצו להרחבה">${esc(j.description)}</div>` : ''}
+    <div class="jobfoot">
+      <button class="${st === 'saved' ? 'on' : ''}" onclick="mark('${j.uid}','saved',this)">⭐ ${st === 'saved' ? 'שמורה' : 'שמירה'}</button>
+      <button class="${st === 'applied' ? 'on' : ''}" onclick="mark('${j.uid}','applied',this)">✅ ${st === 'applied' ? 'הגשתי' : 'סימון שהגשתי'}</button>
+      <button onclick="mark('${j.uid}','hidden',this)">🙈 הסתרה</button>
+    </div></article>`;
+}
+
 async function mark(uid, status, btn) {
   const r = await fetch(`/api/jobs/${uid}/status/${status}`, {method: 'POST'});
   if (!r.ok) { btn.textContent = 'שגיאה'; return; }
-  if (status === 'hidden') document.getElementById('job-' + uid).remove();
-  else btn.textContent = status === 'saved' ? '⭐ נשמר' : '✅ סומן';
+  const j = jobs.find(x => x.uid === uid); if (j) { j.extra = {...(j.extra || {}), status}; }
+  if (status === 'hidden') { jobs = jobs.filter(x => x.uid !== uid); }
+  render();
 }
 </script>
 </body>

@@ -1,4 +1,10 @@
-"""AllJobs (alljobs.co.il) - HTML search results for guests."""
+"""AllJobs (alljobs.co.il) - public guest search pages.
+
+URL: https://www.alljobs.co.il/SearchResultsGuest.aspx?page=N&position=&type=&freetxt=<q>&city=&region=
+Card: div.job-box > div#job-box<ID>, with .job-content-top-title(-ltr) h2 / .T14 a (company),
+.job-content-top-location(-ltr) a[href*=city=], .job-content-top-type, .job-content-top-desc,
+.job-content-top-date ("לפני 21 שעות", "2 ימים").
+"""
 
 from __future__ import annotations
 
@@ -12,35 +18,41 @@ from .base import Source, first_attr, first_text, parse_jsonld_jobs, soup
 
 BASE = "https://www.alljobs.co.il"
 JOB_ID_RE = re.compile(r"JobID=(\d+)", re.I)
+LABEL_RE = re.compile(r"^\s*(מיקום המשרה|סוג משרה)\s*:?\s*")
+
+TITLE = "[class*=job-content-top-title]"
+LOCATION = "[class*=job-content-top-location]"
 
 
 def parse_results(html: str) -> list[Job]:
-    doc = soup(html)
     jobs: list[Job] = []
-    boxes = doc.select("div.open-board, div.job-box, div[id^=job-box-container]")
-    for box in boxes:
-        title = first_text(box, ".job-content-top-title h2", ".job-content-top-title a", "h2 a", "h2", "h3")
-        href = first_attr(box, "href", ".job-content-top-title a", "a[href*='JobID']", "h2 a")
-        if not title or not href:
+    for box in soup(html).select("div.job-box"):
+        href = first_attr(box, "href", "a[href*='UploadSingle.aspx?JobID=']", "a[href*='JobID=']")
+        title = first_text(box, f"{TITLE} h2", "a[href*='JobID='] h2")
+        m = JOB_ID_RE.search(href or "")
+        if not title or not m:
             continue
-        m = JOB_ID_RE.search(href) or JOB_ID_RE.search(box.get("id", "")) or re.search(r"(\d{5,})", box.get("id", ""))
-        job_id = m.group(1) if m else ""
-        company = first_text(box, ".job-content-top-acord .T14 a", ".T14 a", ".job-company-details a", "a[href*='Employer']")
-        location = first_text(box, ".job-content-top-location a", ".job-content-top-location", ".job-region")
-        location = re.sub(r"^(מיקום המשרה|מיקום)\s*:?\s*", "", location)
-        desc = first_text(box, ".job-content-top-desc", ".PT15", ".job-description")
-        job_type = first_text(box, ".job-content-top-type", ".job-type")
-        date_text = first_text(box, ".job-content-top-date", ".job-date", "time")
+        loc_el = box.select_one(LOCATION)
+        cities: list[str] = []
+        if loc_el:
+            for a in loc_el.select("a[href*='city=']"):
+                c = a.get_text(" ", strip=True)
+                if c and c not in cities:
+                    cities.append(c)
+            if not cities:
+                cities = [LABEL_RE.sub("", loc_el.get_text(" ", strip=True))]
+        desc_el = box.select_one(".job-content-top-desc")
+        desc = desc_el.get_text("\n", strip=True) if desc_el else ""
         jobs.append(Job(
             source="alljobs",
             title=title,
             url=urljoin(BASE, href),
-            company=company,
-            location=location,
+            company=first_text(box, f"{TITLE} .T14 a", f"{TITLE} .T14"),
+            location=", ".join(c for c in cities if c),
             description=desc[:4000],
-            posted_at=parse_date(date_text),
-            job_type=re.sub(r"^סוג משרה\s*:?\s*", "", job_type),
-            external_id=job_id,
+            job_type=LABEL_RE.sub("", first_text(box, "[class*=job-content-top-type]")),
+            posted_at=parse_date(first_text(box, ".job-content-top-date")),
+            external_id=m.group(1),
         ))
     return jobs
 
@@ -51,12 +63,14 @@ class AllJobsSource(Source):
     homepage = BASE
 
     def search(self, criteria: SearchCriteria) -> Iterator[Job]:
+        seen: set[str] = set()
         for page in range(1, criteria.max_pages + 1):
             html = self.http.get_text(
                 f"{BASE}/SearchResultsGuest.aspx",
                 params={"page": page, "position": "", "type": "", "freetxt": criteria.query, "city": "", "region": ""},
             )
-            jobs = parse_results(html) or parse_jsonld_jobs(html, self.name, BASE)
-            yield from jobs
-            if not jobs:
+            jobs = [j for j in (parse_results(html) or parse_jsonld_jobs(html, self.name, BASE)) if j.uid not in seen]
+            if not jobs:  # past the last page AllJobs repeats results
                 return
+            seen.update(j.uid for j in jobs)
+            yield from jobs

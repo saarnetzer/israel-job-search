@@ -15,21 +15,29 @@ def test_alljobs():
     jobs = parse_alljobs((F / "alljobs.html").read_text(encoding="utf-8"))
     assert len(jobs) == 2
     j = jobs[0]
-    assert j.title == "מפתח/ת Python לצוות Backend"
-    assert j.company == 'טכנולוגיות בע"מ'
-    assert j.location == "תל אביב"
-    assert j.external_id == "8123456"
-    assert j.url.startswith("https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8123456")
+    assert "backend" in j.title and "Developer" in j.title
+    assert j.company == "Nishapro"
+    assert j.location == "רחובות, לוד"
+    assert j.job_type == "משרה מלאה"
+    assert j.external_id == "8777982"
+    assert j.url == "https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8777982"
+    assert "3 שנות ניסיון" in j.description
     assert j.posted_at is not None
-    assert jobs[1].posted_at.day == 12
+    k = jobs[1]  # English (-ltr) card
+    assert k.title == "Backend Developer (Python)" and k.company == "ALLSTARSIT"
+    assert k.location == "בני ברק" and k.job_type == "משרה חלקית"
 
 
 def test_jobmaster():
     jobs = parse_jobmaster((F / "jobmaster.html").read_text(encoding="utf-8"))
-    assert [j.title for j in jobs] == ["DevOps Engineer", "נציג/ת שירות לקוחות - עבודה מהבית"]
-    assert jobs[0].company == "CloudCo"
-    assert jobs[0].location == "פתח תקווה"
-    assert jobs[0].external_id == "1234567"
+    assert [j.title for j in jobs] == ["Backend SW Engineer", "נציג/ת שירות לקוחות - עבודה מהבית"]
+    j = jobs[0]
+    assert j.company == "גוב פלייס"
+    assert j.location == "יקנעם עילית"
+    assert j.job_type == "משרה מלאה"
+    assert j.url == "https://www.jobmaster.co.il/jobs/checknum.asp?key=9845113"
+    assert j.posted_at is not None
+    assert jobs[1].company == "Experis" and jobs[1].posted_at is None
 
 
 def test_linkedin():
@@ -42,11 +50,15 @@ def test_linkedin():
 
 
 def test_drushim():
-    [j] = parse_api(json.loads((F / "drushim.json").read_text(encoding="utf-8")))
-    assert j.title == "אנליסט/ית נתונים"
-    assert j.company == "בנק הדוגמה"
+    jobs = parse_api(json.loads((F / "drushim.json").read_text(encoding="utf-8")))
+    assert len(jobs) == 1  # expired posting skipped
+    j = jobs[0]
+    assert j.title == "דרוש/ה מפתח/ת Backend עם ניסיון בדיגיטל"
+    assert j.company == "matrix (בנקאות)"
     assert j.location == "רמת גן"
-    assert j.url == "https://www.drushim.co.il/job/55501/abc/"
+    assert j.job_type == "משרה מלאה"
+    assert j.external_id == "38385437"
+    assert j.url == "https://www.drushim.co.il/job/38385437/ddf818d5/"
     assert "SQL" in j.description and "<p>" not in j.description
 
 

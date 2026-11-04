@@ -75,7 +75,7 @@ class JobSearchEngine:
                 src = futures[fut]
                 try:
                     jobs = fut.result()
-                    result.per_source[src.name] = len(jobs)
+                    result.per_source[src.name] = len({j.uid for j in jobs})
                     raw.extend(jobs)
                 except Exception as e:  # report and continue with other sites
                     log.warning("source %s failed: %s", src.name, e)
@@ -93,12 +93,32 @@ class JobSearchEngine:
         result.new_jobs = [j for j in matched if j.uid in new_uids]
         return result
 
-    def search_stored(self, criteria: SearchCriteria) -> list[Job]:
+    def search_stored(self, criteria: SearchCriteria, status: str | None = None) -> list[Job]:
         """Search the local database without hitting the network."""
         if self.store is None:
             return []
-        jobs = sort_jobs(filter_jobs(self.store.all(criteria.sources or None), criteria))
+        jobs = sort_jobs(filter_jobs(self.store.all(criteria.sources or None, status=status), criteria))
         return jobs[: criteria.limit] if criteria.limit else jobs
+
+    def check(self, query: str = "developer") -> dict[str, dict[str, Any]]:
+        """Try every enabled source once and report whether it is reachable and parses results."""
+        report: dict[str, dict[str, Any]] = {}
+        crit = SearchCriteria(keywords=[query], max_pages=1)
+
+        def one(src: Source) -> tuple[str, dict[str, Any]]:
+            try:
+                jobs = list(src.search(crit))
+                sample = jobs[0].to_dict() if jobs else None
+                return src.name, {"ok": bool(jobs), "count": len(jobs), "sample": sample,
+                                  "error": None if jobs else "0 results - the site may have changed its structure"}
+            except Exception as e:
+                return src.name, {"ok": False, "count": 0, "sample": None, "error": f"{type(e).__name__}: {e}"}
+
+        sources = self.enabled_sources()
+        with ThreadPoolExecutor(max_workers=max(1, len(sources))) as pool:
+            for name, r in pool.map(one, sources):
+                report[name] = r
+        return report
 
     def close(self) -> None:
         self.http.close()

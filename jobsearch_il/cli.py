@@ -97,6 +97,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("sources", help="רשימת האתרים הנתמכים")
 
+    ck = sub.add_parser("check", help="בדיקת חיבור לכל אתר (מחפש פעם אחת ומדווח)")
+    ck.add_argument("-q", "--query", default="developer")
+
     w = sub.add_parser("serve", help="ממשק ווב")
     w.add_argument("--host", default="127.0.0.1")
     w.add_argument("--port", type=int, default=8000)
@@ -115,6 +118,19 @@ def main(argv: list[str] | None = None) -> int:
         for name, cls in SOURCES.items():
             state = "פעיל" if name in active else ("דורש הגדרה ב-config.yaml" if cls.needs_config else "כבוי")
             print(f"{name:<11} {cls.display_name:<22} {state}")
+        return 0
+
+    if a.cmd == "check":
+        engine = JobSearchEngine(config)
+        try:
+            for name, r in engine.check(a.query).items():
+                if r["ok"]:
+                    smp = r["sample"]
+                    print(f"✅ {name:<11} {r['count']} משרות. לדוגמה: {smp['title']} | {smp['company']} | {smp['location']}")
+                else:
+                    print(f"❌ {name:<11} {r['error']}")
+        finally:
+            engine.close()
         return 0
 
     if a.cmd == "serve":

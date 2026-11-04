@@ -1,41 +1,46 @@
-"""JobMaster (jobmaster.co.il) - HTML search results."""
+"""JobMaster (jobmaster.co.il) - public search results.
+
+URL: https://www.jobmaster.co.il/jobs/?q=<q>
+Card: <article id="misra<ID>"> with a.CardHeader (title), a.CompanyNameLink span (company),
+li.jobLocation a, li.jobType a, div.jobShortDescription, span.Gray ("פורסם לפני ...").
+Only the first results page (~10 jobs) is available without logging in.
+"""
 
 from __future__ import annotations
 
 import re
 from typing import Iterator
-from urllib.parse import urljoin
 
 from ..models import Job, SearchCriteria
 from ..textutil import parse_date
-from .base import Source, first_attr, first_text, parse_jsonld_jobs, soup
+from .base import Source, first_text, parse_jsonld_jobs, soup
 
 BASE = "https://www.jobmaster.co.il"
 
 
 def parse_results(html: str) -> list[Job]:
-    doc = soup(html)
     jobs: list[Job] = []
-    for card in doc.select("article.JobItem, article.CardStyle, div.JobItem"):
-        title = first_text(card, "a.CardHeader", ".JobItemName", "h2 a", "h3 a", "h2", "h3")
-        href = first_attr(card, "href", "a.CardHeader", "a[href*='checknum']", "h2 a", "h3 a", "a.View_Job_Details")
-        raw_id = card.get("id", "")
-        m = re.search(r"(\d{4,})", raw_id) or re.search(r"key=(\d+)", href or "")
-        job_id = m.group(1) if m else ""
-        if not href and job_id:
-            href = f"/jobs/checknum.asp?key={job_id}"
-        if not title or not href:
+    for card in soup(html).select("article[id^=misra]"):
+        m = re.match(r"misra(\d+)", card.get("id", ""))
+        title = first_text(card, "a.CardHeader")
+        if not m or not title:
             continue
+        posted = ""
+        for span in card.select("span.Gray"):
+            t = span.get_text(" ", strip=True)
+            if t.startswith("פורסם"):
+                posted = t
+                break
         jobs.append(Job(
             source="jobmaster",
             title=title,
-            url=urljoin(BASE, href),
-            company=first_text(card, "a.CompanyNameLink", ".ByTitle a", "span.ByTitle", ".CompanyName"),
-            location=first_text(card, "li.jobLocation", ".jobLocation", ".Location"),
-            description=first_text(card, "div.jobShortDescription", ".jobDescription", ".Description")[:4000],
-            job_type=first_text(card, "li.jobType", ".jobType"),
-            posted_at=parse_date(first_text(card, "span.Gray", ".jobTimePublish", ".paddingTop10px span", "time")),
-            external_id=job_id,
+            url=f"{BASE}/jobs/checknum.asp?key={m.group(1)}",
+            company=first_text(card, "a.CompanyNameLink span", "a.CompanyNameLink"),
+            location=first_text(card, "li.jobLocation a", "li.jobLocation"),
+            job_type=first_text(card, "li.jobType a", "li.jobType"),
+            description=first_text(card, "div.jobShortDescription")[:4000],
+            posted_at=parse_date(posted),
+            external_id=m.group(1),
         ))
     return jobs
 
@@ -46,9 +51,5 @@ class JobMasterSource(Source):
     homepage = BASE
 
     def search(self, criteria: SearchCriteria) -> Iterator[Job]:
-        for page in range(1, criteria.max_pages + 1):
-            html = self.http.get_text(f"{BASE}/jobs/", params={"q": criteria.query, "currPage": page})
-            jobs = parse_results(html) or parse_jsonld_jobs(html, self.name, BASE)
-            yield from jobs
-            if not jobs:
-                return
+        html = self.http.get_text(f"{BASE}/jobs/", params={"q": criteria.query})
+        yield from parse_results(html) or parse_jsonld_jobs(html, self.name, BASE)

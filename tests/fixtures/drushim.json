@@ -1,6 +1,11 @@
-{"TotalPagesNumber": 1, "ResultList": [
- {"Code": "55501", "Company": {"CompanyDisplayName": "בנק הדוגמה"},
-  "JobContent": {"Name": "אנליסט/ית נתונים", "Description": "<p>ניתוח נתונים ב-SQL</p>", "Requirements": "<ul><li>ניסיון של שנה</li></ul>",
-                 "Addresses": [{"City": "רמת גן"}], "Scopes": [{"Name": "משרה מלאה"}]},
-  "JobInfo": {"Link": "/job/55501/abc/", "Date": "2026-11-02T10:00:00"}}
-]}
+{"ResultList": [
+ {"Code": 38385437, "Company": {"Code": 4002163, "CompanyDisplayName": "matrix (בנקאות)", "NameInHebrew": "מטריקס"},
+  "JobContent": {"Name": "דרוש/ה מפתח/ת Backend עם ניסיון בדיגיטל", "Description": "<p>ניתוח נתונים ב-SQL</p>",
+                 "Requirements": "<ul><li>ניסיון של שנה</li></ul>",
+                 "Addresses": [{"City": "רמת גן", "CityEnglish": "Ramat Gan"}, {"City": "רמת גן"}],
+                 "Scopes": [{"Code": 1, "NameInHebrew": "משרה מלאה"}]},
+  "JobInfo": {"Lang": 1, "Link": "/job/38385437/ddf818d5/", "Date": "2026-11-02T10:00:00", "IsExpired": false}},
+ {"Code": 30415855, "Company": {"NameInHebrew": "דאטה וויי - Dataway"},
+  "JobContent": {"Name": "משרה שפגה"}, "JobInfo": {"Link": "/job/30415855/x/", "IsExpired": true}}
+],
+ "TotalPagesNumber": 1, "NextPageNumber": 1, "TotalSearchResultCount": 2}

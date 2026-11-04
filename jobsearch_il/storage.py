@@ -64,12 +64,16 @@ class JobStore:
                 new.append(j)
         return new
 
-    def all(self, sources: list[str] | None = None, include_hidden: bool = False) -> list[Job]:
+    def all(self, sources: list[str] | None = None, include_hidden: bool = False,
+            status: str | None = None) -> list[Job]:
         sql, args = "SELECT * FROM jobs WHERE 1=1", []
         if sources:
             sql += f" AND source IN ({','.join('?' * len(sources))})"
             args += sources
-        if not include_hidden:
+        if status:
+            sql += " AND status = ?"
+            args.append(status)
+        elif not include_hidden:
             sql += " AND status != 'hidden'"
         sql += " ORDER BY COALESCE(posted_at, first_seen) DESC"
         return [self._row_to_job(r) for r in self.conn.execute(sql, args)]
