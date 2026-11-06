@@ -308,7 +308,7 @@ def _gender_variants(term: str) -> list[str]:
     return variants
 
 
-_GENDER_SLASH = re.compile(r"\s*/\s*(?:ית|ה|ת|ים|ות|יות)(?![\u0590-\u05FF])")
+_GENDER_SLASH = re.compile(r"\s*[/.]\s*(?:ית|ה|ת|ים|ות|יות)(?![\u0590-\u05FF])|\((?:ית|ה|ת)\)")
 
 
 def _ungender(text: str) -> str:

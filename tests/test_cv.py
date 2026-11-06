@@ -250,3 +250,11 @@ def test_bookkeeper_jobs_mentioning_cpa_are_kept(title, desc):
     assert missing_title(Job(source="t", title=title, url="u", description=desc), ctx) is None
     # ...but a CPA job is still hidden for this CV
     assert missing_title(Job(source="t", title='רו"ח למשרד מוביל', url="u"), ctx) == "רואה חשבון"
+
+
+def test_dot_and_parenthesis_gender_forms():
+    from jobsearch_il.cv import _title_roles, phrase_in
+
+    assert "Project Manager" in _title_roles("קבוצת אשטרום מגייסת מנהל.ת פרויקטים")
+    assert phrase_in("דרוש.ה חשב.ת שכר", "חשבת שכר")
+    assert phrase_in("מנהל(ת) חשבונות", "מנהל חשבונות")
