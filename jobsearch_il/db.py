@@ -61,6 +61,15 @@ saved_searches = sa.Table(
     sa.UniqueConstraint("user_id", "name"),
 )
 
+cvs = sa.Table(
+    "cvs", metadata,
+    sa.Column("user_id", sa.Integer, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("filename", sa.String(255), nullable=False),
+    sa.Column("text", sa.Text, nullable=False),
+    sa.Column("profile", sa.Text, nullable=False),
+    sa.Column("uploaded_at", sa.DateTime, nullable=False),
+)
+
 
 def make_engine(url: str) -> sa.Engine:
     """Accept a file path, sqlite:// URL, or postgres(ql):// URL (Neon/Render style)."""

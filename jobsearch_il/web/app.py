@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from fastapi import Body, Depends, FastAPI, Form, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ..auth import AuthError, RateLimiter, UserStore
+from ..cv import CVError, CVProfile, extract_profile, extract_text, score_job, search_queries
 from ..engine import JobSearchEngine
 from ..locations import REGIONS
 from ..models import SearchCriteria
@@ -25,7 +26,7 @@ COOKIE = "jsil_session"
 
 # fields a user may keep as default search settings
 DEFAULT_FIELDS = {"q", "location", "job_type", "days", "max_exp", "min_salary", "exclude", "exclude_company",
-                  "remote", "match_all", "title_only", "pages", "source"}
+                  "remote", "match_all", "title_only", "pages", "source", "mode"}
 
 
 def _split(v: str | None) -> list[str]:
@@ -104,6 +105,14 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         return [{"name": n, "display_name": c.display_name, "active": n in active, "needs_config": c.needs_config}
                 for n, c in engine.registry.items()]
 
+    def cv_info(user_id: int) -> dict[str, Any] | None:
+        cv = users.get_cv(user_id)
+        if cv is None:
+            return None
+        profile = CVProfile.from_dict(cv["profile"])
+        return {"filename": cv["filename"], "uploaded_at": cv["uploaded_at"].isoformat(timespec="seconds"),
+                "profile": profile.to_dict(), "queries": search_queries(profile), "chars": len(cv["text"])}
+
     def client_ip(request: Request) -> str:
         fwd = request.headers.get("x-forwarded-for", "")
         return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
@@ -173,14 +182,14 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
     def index(request: Request, user: dict = Depends(page_user)):
         boot = {"sources": sources_info(), "regions": list(REGIONS), "stats": engine.store.stats(),
                 "user": {"email": user["email"], "settings": user["settings"]},
-                "searches": users.list_searches(user["id"])}
+                "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
         return TEMPLATES.TemplateResponse(request, "index.html", {"boot": json.dumps(boot, ensure_ascii=False),
                                                                   "user": user})
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_page(request: Request, user: dict = Depends(page_user)):
         boot = {"sources": sources_info(), "regions": list(REGIONS), "settings": user["settings"],
-                "searches": users.list_searches(user["id"])}
+                "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
         return TEMPLATES.TemplateResponse(request, "settings.html", {"boot": json.dumps(boot, ensure_ascii=False),
                                                                      "user": user})
 
@@ -234,6 +243,36 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             raise HTTPException(404, "not found")
         return {"ok": True}
 
+    @app.get("/api/cv")
+    def get_cv(user: dict = Depends(api_user)):
+        return {"cv": cv_info(user["id"])}
+
+    @app.post("/api/cv")
+    async def upload_cv(file: UploadFile = File(...), user: dict = Depends(api_user)):
+        data = await file.read(5 * 1024 * 1024 + 1)
+        try:
+            text = extract_text(file.filename or "", data)
+        except CVError as e:
+            raise HTTPException(400, str(e))
+        profile = extract_profile(text)
+        users.save_cv(user["id"], file.filename or "cv", text, profile.to_dict())
+        return {"cv": cv_info(user["id"])}
+
+    @app.put("/api/cv")
+    def update_cv(data: dict = Body(...), user: dict = Depends(api_user)):
+        clean = lambda xs: [str(x).strip()[:60] for x in (xs or []) if str(x).strip()][:30]  # noqa: E731
+        cv = users.get_cv(user["id"])
+        if cv is None:
+            raise HTTPException(404, "לא הועלו קורות חיים")
+        profile = {**cv["profile"], "roles": clean(data.get("roles")), "skills": clean(data.get("skills"))}
+        users.update_cv_profile(user["id"], profile)
+        return {"cv": cv_info(user["id"])}
+
+    @app.delete("/api/cv")
+    def delete_cv(user: dict = Depends(api_user)):
+        users.delete_cv(user["id"])
+        return {"ok": True}
+
     @app.get("/api/search/since")
     def search_since(user: dict = Depends(api_user)):
         """When this user's previous search finished: jobs first seen after it get a "new" badge."""
@@ -242,7 +281,8 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
 
     @app.get("/api/search")
     def api_search(c: SearchCriteria = Depends(criteria_params), live: bool = False, status: str | None = None,
-                   since: str | None = None, mark: bool = False, user: dict = Depends(api_user)):
+                   since: str | None = None, mark: bool = False, cv: bool = False,
+                   min_match: int = Query(25, ge=0, le=100), user: dict = Depends(api_user)):
         if live:
             res = engine.search(c)
             return {"count": len(res.jobs), "scraped": res.scraped, "per_source": res.per_source,
@@ -255,14 +295,33 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
                 cutoff = datetime.fromisoformat(since)
             except ValueError:
                 raise HTTPException(400, "bad since")
+        profile = None
+        if cv:
+            saved = users.get_cv(user["id"])
+            if saved is None:
+                raise HTTPException(400, "לא הועלו קורות חיים")
+            profile = CVProfile.from_dict(saved["profile"])
+            limit, c.limit = c.limit, None
+            c.keywords = []  # the CV decides relevance, in title and description
         jobs = engine.search_stored(c, status=status, user_id=user["id"])
+        matches: dict[str, dict[str, Any]] = {}
+        if profile is not None:
+            scored = []
+            for j in jobs:
+                score, matched = score_job(j, profile)
+                if score >= min_match:
+                    matches[j.uid] = {"score": score, "matched": matched}
+                    scored.append(j)
+            jobs = sorted(scored, key=lambda j: (matches[j.uid]["score"], j.posted_at or datetime.min), reverse=True)
+            jobs = jobs[:limit] if limit else jobs
         if mark:
             users.mark_searched(user["id"])
 
         def is_new(j) -> bool:  # no cutoff = first search ever: nothing is "new" yet
             return cutoff is not None and j.extra.get("first_seen", "") > cutoff.isoformat(timespec="seconds")
 
-        return {"count": len(jobs), "jobs": [{**j.to_dict(), "is_new": is_new(j)} for j in jobs]}
+        return {"count": len(jobs),
+                "jobs": [{**j.to_dict(), "is_new": is_new(j), "match": matches.get(j.uid)} for j in jobs]}
 
     @app.post("/api/jobs/{uid}/status/{status}")
     def set_status(uid: str, status: str, user: dict = Depends(api_user)):

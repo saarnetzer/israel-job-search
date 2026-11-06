@@ -41,6 +41,11 @@
 </section>
 
 <section class="panel">
+  <h2>קורות חיים</h2>
+  <div id="cvinfo"></div>
+</section>
+
+<section class="panel">
   <h2>חיפושים שמורים</h2>
   <ul class="list" id="searches"></ul>
 </section>
@@ -101,6 +106,18 @@ df.onsubmit = async e => {
   try { await api('/api/settings', {method: 'PUT', body: JSON.stringify({defaults: v})}); msg($('#defMsg'), 'נשמר', true); }
   catch (err) { msg($('#defMsg'), err.message); }
 };
+
+let CV = BOOT.cv;
+function renderCVInfo() {
+  $('#cvinfo').innerHTML = CV
+    ? `<div class="row" style="justify-content:space-between"><span>📄 <b>${esc(CV.filename)}</b>
+         <span class="muted">· הועלה ${new Date(CV.uploaded_at).toLocaleDateString('he-IL')} · ${CV.profile.roles.length} תפקידים, ${CV.profile.skills.length} כישורים</span></span>
+         <button class="ghost" id="cvdel">מחיקת קורות החיים</button></div>
+       <p class="muted" style="margin-bottom:0">נשמר רק הטקסט שחולץ מהקובץ, לא הקובץ עצמו. אפשר לערוך את התפקידים והכישורים בדף החיפוש, בלשונית "לפי קורות חיים".</p>`
+    : '<p class="muted" style="margin:0">לא הועלו קורות חיים. אפשר להעלות בדף החיפוש, בלשונית "לפי קורות חיים".</p>';
+  const b = $('#cvdel'); if (b) b.onclick = async () => { await api('/api/cv', {method: 'DELETE'}); CV = null; renderCVInfo(); };
+}
+renderCVInfo();
 
 let searches = BOOT.searches;
 function renderSearches() {

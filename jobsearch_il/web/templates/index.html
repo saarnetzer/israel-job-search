@@ -10,6 +10,12 @@
 <div class="sub" id="sub"></div>
 
 <form class="panel" id="form" autocomplete="off">
+  <input type="hidden" name="mode" value="words">
+  <div class="modes" role="tablist">
+    <button type="button" data-mode="words" class="on">🔎 חיפוש לפי מילים</button>
+    <button type="button" data-mode="cv">📄 לפי קורות חיים</button>
+  </div>
+  <div class="cvbox" id="cvbox" hidden></div>
   <div class="searchrow">
     <input type="text" name="q" placeholder="מה מחפשים? למשל: python, מנהלת חשבונות, נהג" aria-label="מילות חיפוש">
     <input type="text" name="location" placeholder="איפה? עיר או אזור (ריק = כל הארץ)" list="regions" aria-label="מיקום">
@@ -65,7 +71,7 @@
   </div>
   <div class="tools">
     <input type="text" id="quick" placeholder="סינון מהיר…" aria-label="סינון מהיר">
-    <select id="sort" aria-label="מיון"><option value="date">החדשות ביותר</option><option value="company">לפי חברה</option><option value="source">לפי אתר</option></select>
+    <select id="sort" aria-label="מיון"><option value="match" hidden>ההתאמה הגבוהה ביותר</option><option value="date">החדשות ביותר</option><option value="company">לפי חברה</option><option value="source">לפי אתר</option></select>
   </div>
 </div>
 <div class="count" id="count"></div>
@@ -105,6 +111,74 @@ form.location.addEventListener('input', syncChips);
 $('#sourceChecks').innerHTML = '<span style="color:var(--muted)">אתרים:</span>' + BOOT.sources.map(s =>
   `<label title="${s.active ? '' : 'דורש הגדרה ב-config.yaml'}"><input type="checkbox" name="src" value="${s.name}" ${s.active ? 'checked' : 'disabled'}> ${esc(s.display_name)}</label>`).join('');
 
+// ---------------------------------------------------------------- CV mode
+let CV = BOOT.cv;
+const cvbox = $('#cvbox');
+const roleLabel = r => (CV && CV.profile.terms && CV.profile.terms[r]) || r;
+function setMode(m) {
+  form.mode.value = m;
+  document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  cvbox.hidden = m !== 'cv';
+  form.q.hidden = m === 'cv';
+  form.q.required = false;
+  $('.searchrow').style.gridTemplateColumns = m === 'cv' ? '1fr auto' : '';
+  form.title_only.closest('label').hidden = form.match_all.closest('label').hidden = m === 'cv';
+  if (m === 'cv') renderCV();
+}
+document.querySelectorAll('.modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+function renderCV() {
+  if (!CV) {
+    cvbox.innerHTML = `<div class="upload">
+      <div style="font-size:28px">📄</div>
+      <div><b>העלו קורות חיים</b> ונמצא משרות שמתאימות לכם, לפי התאמה בכותרת המשרה ובפירוט שלה</div>
+      <label class="primary" style="padding:9px 16px;border-radius:10px;color:#fff">בחירת קובץ<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label>
+      <div style="font-size:12px">PDF, Word (‎.docx‎) או טקסט, עד 5MB · נשמר רק הטקסט, לא הקובץ</div>
+      <div id="cvmsg"></div></div>`;
+  } else {
+    const p = CV.profile;
+    const tag = (kind, v, label) => `<span class="tag ${kind === 'roles' ? 'role' : ''}">${esc(label || v)}<button type="button" aria-label="הסרה" data-kind="${kind}" data-v="${esc(v)}">×</button></span>`;
+    cvbox.innerHTML = `<div class="cvhead">
+        <span>📄 <b>${esc(CV.filename)}</b> <span class="muted">· ${new Date(CV.uploaded_at).toLocaleDateString('he-IL')}${p.years ? ` · כ-${p.years} שנות ניסיון` : ''}</span></span>
+        <span class="actions"><label>החלפה<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label><button type="button" id="cvdel">מחיקה</button></span>
+      </div>
+      <div class="taglabel">תפקידים שזוהו (חשובים יותר, בעיקר בכותרת המשרה)</div>
+      <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="+ הוספת תפקיד" data-add="roles"></div>
+      <div class="taglabel">כישורים שזוהו</div>
+      <div class="tags">${p.skills.map(x => tag('skills', x)).join('')}<input type="text" placeholder="+ הוספת כישור" data-add="skills"></div>
+      <div class="muted" style="font-size:12px;margin-top:10px">החיפוש באתרים: ${CV.queries.map(esc).join(' · ') || '—'}</div>
+      <div id="cvmsg"></div>`;
+    cvbox.querySelectorAll('.tag button').forEach(b => b.onclick = () => {
+      const k = b.dataset.kind; saveProfile({...p, [k]: p[k].filter(x => x !== b.dataset.v)});
+    });
+    cvbox.querySelectorAll('input[data-add]').forEach(inp => inp.onkeydown = e => {
+      if (e.key !== 'Enter') return; e.preventDefault();
+      const v = inp.value.trim(), k = inp.dataset.add; if (!v || p[k].includes(v)) return;
+      saveProfile({...p, [k]: [...p[k], v]});
+    });
+    $('#cvdel').onclick = async () => { await api('/api/cv', {method: 'DELETE'}); CV = null; renderCV(); };
+  }
+  $('#cvfile').onchange = e => e.target.files[0] && uploadCV(e.target.files[0]);
+}
+async function saveProfile(p) {
+  try { CV = (await api('/api/cv', {method: 'PUT', body: JSON.stringify({roles: p.roles, skills: p.skills})})).cv; renderCV(); }
+  catch (e) { $('#cvmsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
+}
+async function uploadCV(file) {
+  $('#cvmsg').innerHTML = '<div class="muted" style="margin-top:8px">קורא את הקובץ…</div>';
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch('/api/cv', {method: 'POST', body: fd});
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.href = '/login'; return; }
+    if (!r.ok) throw new Error(d.detail || r.status);
+    CV = d.cv; renderCV();
+  } catch (e) { $('#cvmsg').innerHTML = `<div class="msg err" style="margin-top:8px">${esc(e.message)}</div>`; }
+}
+['dragover', 'dragenter'].forEach(ev => cvbox.addEventListener(ev, e => { e.preventDefault(); cvbox.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => cvbox.addEventListener(ev, e => { e.preventDefault(); cvbox.classList.remove('drag'); }));
+cvbox.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) uploadCV(f); });
+
 function fill(values) {
   form.reset();
   for (const [k, v] of Object.entries(values || {})) {
@@ -115,6 +189,7 @@ function fill(values) {
   const src = (values || {}).source;
   if (Array.isArray(src) && src.length) form.querySelectorAll('input[name=src]').forEach(c => { if (!c.disabled) c.checked = src.includes(c.value); });
   syncChips();
+  setMode((values || {}).mode === 'cv' ? 'cv' : 'words');
 }
 fill(BOOT.user.settings.defaults);
 
@@ -162,6 +237,13 @@ const selectedSources = () => [...form.querySelectorAll('input[name=src]:checked
 form.addEventListener('submit', async ev => {
   ev.preventDefault();
   const p = params();
+  const cvMode = form.mode.value === 'cv';
+  if (cvMode) {
+    if (!CV) { renderCV(); $('#cvmsg').innerHTML = '<div class="msg err" style="margin-top:8px">קודם מעלים קורות חיים</div>'; return; }
+    if (!CV.queries.length) { alert('לא זוהו תפקידים או כישורים. הוסיפו לפחות אחד.'); return; }
+    p.set('q', CV.queries.join(', '));
+  }
+  p.delete('mode');
   const srcs = selectedSources();
   if (!srcs.length) { alert('בחרו לפחות אתר אחד'); return; }
   $('#go').disabled = true; newSet = new Set();
@@ -180,6 +262,9 @@ form.addEventListener('submit', async ev => {
   }));
   // merged + deduped view straight from the local database
   const q = new URLSearchParams(p); srcs.forEach(s => q.append('source', s));
+  if (cvMode) { q.delete('q'); q.set('cv', 'true'); }
+  $('#sort').querySelector('[value=match]').hidden = !cvMode;
+  $('#sort').value = cvMode ? 'match' : 'date';
   q.set('since', since || '');
   lastParams = new URLSearchParams(q);
   q.set('mark', 'true');  // remember when this search finished, for next time's "new" badges
@@ -204,7 +289,7 @@ $('#quick').oninput = render; $('#sort').onchange = render;
 function render() {
   const f = $('#quick').value.trim().toLowerCase(), sort = $('#sort').value;
   let list = jobs.filter(j => !f || [j.title, j.company, j.location, j.description].join(' ').toLowerCase().includes(f));
-  const key = { date: j => -(Date.parse(j.posted_at) || 0), company: j => j.company || 'תתת', source: j => j.source }[sort];
+  const key = { match: j => -((j.match || {}).score || 0), date: j => -(Date.parse(j.posted_at) || 0), company: j => j.company || 'תתת', source: j => j.source }[sort];
   list = [...list].sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : 0; });
   const nNew = list.filter(j => newSet.has(j.uid)).length;
   $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם שלך` : '') : '';
@@ -216,8 +301,11 @@ function card(j) {
   const date = j.posted_at ? new Date(j.posted_at).toLocaleDateString('he-IL') : '';
   const st = j.extra?.status;
   const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener">גם ב־${esc(NAMES[o.source] || o.source)}</a>`).join('');
+  const m = j.match;
+  const matchBadge = m ? `<span class="match ${m.score < 60 ? 'mid' : ''}">התאמה ${m.score}%</span>` : '';
+  const matchedLine = m && m.matched.length ? `<div class="matched">תואם לקורות החיים: ${m.matched.map(x => esc(roleLabel(x))).join(', ')}</div>` : '';
   return `<article class="job" id="j-${j.uid}">
-    <h3><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+    <h3>${matchBadge} <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
       ${newSet.has(j.uid) ? '<span class="badge new">חדש</span>' : ''}</h3>
     <div class="meta">
       ${j.company ? `<span>🏢 ${esc(j.company)}</span>` : ''}
@@ -227,6 +315,7 @@ function card(j) {
       ${date ? `<span>📅 ${date}</span>` : ''}
       <bdi class="badge src">${esc(NAMES[j.source] || j.source)}</bdi>${also}
     </div>
+    ${matchedLine}
     ${j.description ? `<div class="desc" onclick="this.classList.toggle('open')" title="לחצו להרחבה">${esc(j.description)}</div>` : ''}
     <div class="jobfoot">
       <button class="${st === 'saved' ? 'on' : ''}" onclick="mark('${j.uid}','saved',this)">⭐ ${st === 'saved' ? 'שמורה' : 'שמירה'}</button>

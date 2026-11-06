@@ -126,7 +126,7 @@ class UserStore:
 
     def delete(self, user_id: int) -> None:
         with self.engine.begin() as conn:
-            for t in (db.sessions, db.saved_searches, db.user_jobs):
+            for t in (db.sessions, db.saved_searches, db.user_jobs, db.cvs):
                 conn.execute(t.delete().where(t.c.user_id == user_id))
             conn.execute(db.users.delete().where(db.users.c.id == user_id))
 
@@ -204,3 +204,28 @@ class UserStore:
         t = db.saved_searches
         with self.engine.begin() as conn:
             return conn.execute(t.delete().where(sa.and_(t.c.id == search_id, t.c.user_id == user_id))).rowcount > 0
+
+    # ------------------------------------------------------------ CV
+    def get_cv(self, user_id: int) -> dict[str, Any] | None:
+        with self.engine.connect() as conn:
+            r = conn.execute(sa.select(db.cvs).where(db.cvs.c.user_id == user_id)).mappings().first()
+        if r is None:
+            return None
+        return {"filename": r["filename"], "text": r["text"], "profile": json.loads(r["profile"]),
+                "uploaded_at": r["uploaded_at"]}
+
+    def save_cv(self, user_id: int, filename: str, text: str, profile: dict[str, Any]) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(db.cvs.delete().where(db.cvs.c.user_id == user_id))
+            conn.execute(db.cvs.insert().values(user_id=user_id, filename=filename[:255], text=text,
+                                                profile=json.dumps(profile, ensure_ascii=False),
+                                                uploaded_at=datetime.now()))
+
+    def update_cv_profile(self, user_id: int, profile: dict[str, Any]) -> bool:
+        with self.engine.begin() as conn:
+            return conn.execute(db.cvs.update().where(db.cvs.c.user_id == user_id)
+                                .values(profile=json.dumps(profile, ensure_ascii=False))).rowcount > 0
+
+    def delete_cv(self, user_id: int) -> bool:
+        with self.engine.begin() as conn:
+            return conn.execute(db.cvs.delete().where(db.cvs.c.user_id == user_id)).rowcount > 0
