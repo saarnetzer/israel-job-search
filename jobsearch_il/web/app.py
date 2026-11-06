@@ -14,7 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ..auth import AuthError, RateLimiter, UserStore
-from ..cv import CVError, CVProfile, extract_profile, extract_text, score_job, search_queries
+from ..cv import (CVError, CVProfile, excluded_by, extract_profile, extract_text, missing_title, score_job,
+                  search_queries, title_context)
 from ..engine import JobSearchEngine
 from ..locations import REGIONS
 from ..models import SearchCriteria
@@ -264,7 +265,12 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         cv = users.get_cv(user["id"])
         if cv is None:
             raise HTTPException(404, "לא הועלו קורות חיים")
-        profile = {**cv["profile"], "roles": clean(data.get("roles")), "skills": clean(data.get("skills"))}
+        profile = {**cv["profile"]}
+        for key in ("roles", "skills", "include", "exclude"):
+            if key in data:
+                profile[key] = clean(data.get(key))
+        if "hide_other_titles" in data:
+            profile["hide_other_titles"] = bool(data["hide_other_titles"])
         users.update_cv_profile(user["id"], profile)
         return {"cv": cv_info(user["id"])}
 
@@ -301,13 +307,25 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             if saved is None:
                 raise HTTPException(400, "לא הועלו קורות חיים")
             profile = CVProfile.from_dict(saved["profile"])
+            ctx = title_context(saved["text"], profile) if profile.hide_other_titles else None
             limit, c.limit = c.limit, None
             c.keywords = []  # the CV decides relevance, in title and description
         jobs = engine.search_stored(c, status=status, user_id=user["id"])
         matches: dict[str, dict[str, Any]] = {}
+        n_excluded = 0
+        hidden: list[dict[str, Any]] = []
         if profile is not None:
             scored = []
             for j in jobs:
+                tag = excluded_by(j, profile)
+                if tag:
+                    n_excluded += 1
+                    hidden.append({"title": j.title, "company": j.company, "url": j.url, "why": "exclude", "term": tag})
+                    continue
+                missing = missing_title(j, ctx) if ctx else None
+                if missing:
+                    hidden.append({"title": j.title, "company": j.company, "url": j.url, "why": "title", "term": missing})
+                    continue
                 score, matched = score_job(j, profile)
                 if score >= min_match:
                     matches[j.uid] = {"score": score, "matched": matched}
@@ -320,7 +338,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         def is_new(j) -> bool:  # no cutoff = first search ever: nothing is "new" yet
             return cutoff is not None and j.extra.get("first_seen", "") > cutoff.isoformat(timespec="seconds")
 
-        return {"count": len(jobs),
+        return {"count": len(jobs), "excluded": n_excluded, "hidden": hidden[:200],
                 "jobs": [{**j.to_dict(), "is_new": is_new(j), "match": matches.get(j.uid)} for j in jobs]}
 
     @app.post("/api/jobs/{uid}/status/{status}")

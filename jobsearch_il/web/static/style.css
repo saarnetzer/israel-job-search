@@ -91,3 +91,15 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0}
 .matched{font-size:12px;color:var(--muted);margin-top:6px}
 .upload{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:10px;color:var(--muted);font-size:14px}
 .upload label{cursor:pointer}
+.tag.inc{background:#efe7fd;color:#6b3fc4}
+.tag.exc{background:var(--err-soft);color:var(--err)}
+@media (prefers-color-scheme:dark){.tag.inc{background:#2c2346;color:#b99cff}}
+.filterrows{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+@media (max-width:720px){.filterrows{grid-template-columns:1fr}}
+.tags input{min-width:0}
+.hiddenbox{margin:4px 0 12px;font-size:13px;color:var(--muted)}
+.hiddenbox summary{color:var(--muted)}
+.hiddenbox ul{margin:8px 0 0;padding-inline-start:18px;max-height:260px;overflow:auto}
+.hiddenbox li{margin:3px 0}
+.hiddenbox .why{color:var(--err)}
+.cvopt{display:flex;align-items:center;gap:6px;font-size:13px;margin-top:10px;color:var(--text)}

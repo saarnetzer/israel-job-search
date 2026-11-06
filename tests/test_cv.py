@@ -107,10 +107,146 @@ def test_cv_web_flow(db_url):
     jobs = c.get("/api/search", params={"cv": True, "location": "מרכז"}).json()["jobs"]
     assert [j["title"] for j in jobs] == ["Senior Backend Developer"]  # Haifa filtered, bookkeeping not a match
     assert jobs[0]["match"]["score"] >= 80 and "Backend Developer" in jobs[0]["match"]["matched"]
-    everything = c.get("/api/search", params={"cv": True, "min_match": 0}).json()["jobs"]
-    scores = {j["title"]: j["match"]["score"] for j in everything}
-    assert scores["Senior Backend Developer"] > scores["Python Developer"] > scores["מנהלת חשבונות"] == 0
+    everything = c.get("/api/search", params={"cv": True, "min_match": 0}).json()
+    scores = {j["title"]: j["match"]["score"] for j in everything["jobs"]}
+    assert scores["Senior Backend Developer"] > scores["Python Developer"] > 0
+    # a bookkeeping job asks for a title this CV doesn't have
+    assert [(h["title"], h["why"]) for h in everything["hidden"]] == [("מנהלת חשבונות", "title")]
 
     assert "📄" in c.get("/").text and "קורות חיים" in c.get("/settings").text
     assert c.delete("/api/cv").json() == {"ok": True}
     assert c.get("/api/cv").json() == {"cv": None}
+
+
+@pytest.mark.parametrize("text,hit", [
+    ("דרוש /ה חשב /ת שכר למשרד", True), ("דרושה חשבת שכר", True), ("דרוש חשב שכר", True),
+    ("עבודה מול חשבת השכר", True), ("מנהלת חשבונות סוג 3", False), ("משרה עם שכר גבוה", False),
+])
+def test_exclude_phrase_catches_gender_forms(text, hit):
+    from jobsearch_il.cv import excluded_by
+
+    p = CVProfile(exclude=["חשבת שכר"])
+    assert (excluded_by(Job(source="t", title="x", url="u", description=text), p) == "חשבת שכר") is hit
+
+
+def test_include_tags_search_and_score():
+    from jobsearch_il.cv import content_words, include_in
+
+    assert content_words("ניסיון עם כספים") == ["כספים"]
+    assert include_in("מחלקת הכספים", "ניסיון עם כספים")
+    assert not include_in("Finance team", "ניסיון עם כספים")
+    p = CVProfile(roles=["Bookkeeper / Accountant"], terms={"Bookkeeper / Accountant": "מנהלת חשבונות"},
+                  skills=["חשבשבת"], include=["ניסיון עם כספים"])
+    assert search_queries(p) == ["מנהלת חשבונות", "כספים", "חשבשבת"]
+    with_wish = Job(source="t", title="מנהלת חשבונות למחלקת כספים", url="u1", description="חשבשבת")
+    without = Job(source="t", title="מנהלת חשבונות", url="u2", description="חשבשבת")
+    (s1, m1), (s2, _) = score_job(with_wish, p), score_job(without, p)
+    assert s1 > s2 and "ניסיון עם כספים" in m1
+
+
+def test_cv_include_exclude_web(db_url):
+    class Src(Source):
+        name = "fake"
+
+        def search(self, criteria):
+            yield Job(source="fake", title="מנהלת חשבונות למחלקת כספים", url="https://f/1", location="תל אביב",
+                      description="חשבשבת, פריוריטי")
+            yield Job(source="fake", title="חשב /ת שכר ומנהל /ת חשבונות", url="https://f/2", location="תל אביב",
+                      description="חשבשבת")
+            yield Job(source="fake", title="מנהלת חשבונות", url="https://f/3", location="תל אביב",
+                      description="חשבשבת")
+
+    c = TestClient(create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": Src})))
+    c.post("/register", data={"email": "r@example.com", "password": "password123", "password2": "password123"})
+    c.post("/api/cv", files={"file": ("ronit.docx", docx_bytes(HE_CV), "application/octet-stream")})
+    cv = c.put("/api/cv", json={"include": ["ניסיון עם כספים"], "exclude": ["חשבת שכר"]}).json()["cv"]
+    assert cv["profile"]["include"] == ["ניסיון עם כספים"] and cv["profile"]["exclude"] == ["חשבת שכר"]
+    assert cv["profile"]["roles"]  # untouched fields are kept
+    assert "כספים" in cv["queries"]
+
+    c.get("/api/search", params={"live": True, "q": ", ".join(cv["queries"])})
+    r = c.get("/api/search", params={"cv": True}).json()
+    assert r["excluded"] == 1
+    titles = [j["title"] for j in r["jobs"]]
+    assert titles == ["מנהלת חשבונות למחלקת כספים", "מנהלת חשבונות"]  # wish tag ranks first, payroll hidden
+    assert "ניסיון עם כספים" in r["jobs"][0]["match"]["matched"]
+
+
+@pytest.mark.parametrize("title,desc,want", [
+    ("עורך/ת דין למחלקה מסחרית", "", "עורך דין"),
+    ("משרה במחלקה המשפטית", 'דרישות: עו"ד בעל/ת רישיון', "עורך דין"),
+    ("משרה במחלקה המשפטית", 'עו"ד - יתרון', None),
+    ('מזכירה למשרד עו"ד', "ניסיון במשרד עורכי דין", None),          # workplace, not the role
+    ("מזכירה", 'עבודה מול משרד עו"ד חיצוני, חובה אנגלית', None),
+    ("מזכירה משפטית", "", None),
+    ("QA Automation Engineer", "", "qa automation"),                # a role the CV doesn't have
+    ("נהג/ת חלוקה", "", "נהג"),
+    ("עבודה כללית במחסן", "", "מחסן"),
+    ("משרה מעניינת", "", None),                                      # no recognizable title: keep
+])
+def test_missing_title_law_knowledge_cv(title, desc, want):
+    from jobsearch_il.cv import missing_title, title_context
+
+    ctx = title_context("מזכירה משפטית\\nידע במשפטים, עבודה במשרד עורכי דין", CVProfile(roles=["Office / Administration"]))
+    assert ctx.credentials == set()
+    assert missing_title(Job(source="t", title=title, url="u", description=desc), ctx) == want
+
+
+def test_missing_title_related_roles_and_credentials():
+    from jobsearch_il.cv import missing_title, title_context
+
+    dev = title_context("Backend Developer, Python, AWS", CVProfile(roles=["Backend Developer"]))
+    for ok in ("Full Stack Engineer", "Senior Software Engineer", "Team Lead Backend", "Python Developer"):
+        assert missing_title(Job(source="t", title=ok, url="u"), dev) is None, ok
+    for bad in ("QA Automation Engineer", "DevOps Engineer", "Data Analyst"):
+        assert missing_title(Job(source="t", title=bad, url="u"), dev), bad
+    lawyer = title_context('עו"ד, חברה בלשכת עורכי הדין', CVProfile())
+    assert "עורך דין" in lawyer.credentials
+    assert missing_title(Job(source="t", title="עורך/ת דין", url="u"), lawyer) is None
+
+
+def test_cv_hides_other_titles_web(db_url):
+    class Src(Source):
+        name = "fake"
+
+        def search(self, criteria):
+            yield Job(source="fake", title="מזכירה משפטית למשרד עו\"ד", url="https://f/1", description="אופיס")
+            yield Job(source="fake", title="עורך/ת דין לליטיגציה", url="https://f/2", description="ידע במשפטים")
+            yield Job(source="fake", title="משרה משפטית", url="https://f/3", description="דרישות: עו\"ד בעל/ת רישיון, אופיס")
+
+    c = TestClient(create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": Src})))
+    c.post("/register", data={"email": "l@example.com", "password": "password123", "password2": "password123"})
+    cv_text = "מיכל לוי\nמזכירה משפטית\nידע במשפטים, אופיס, הכנת מסמכים משפטיים\n2019 - היום"
+    c.post("/api/cv", files={"file": ("cv.txt", cv_text.encode(), "text/plain")})
+    c.get("/api/search", params={"live": True, "q": "מזכירה"})
+    r = c.get("/api/search", params={"cv": True, "min_match": 0}).json()
+    assert [j["title"] for j in r["jobs"]] == ['מזכירה משפטית למשרד עו"ד']
+    assert sorted((h["why"], h["term"]) for h in r["hidden"]) == [("title", "עורך דין"), ("title", "עורך דין")]
+    # can be switched off
+    c.put("/api/cv", json={"hide_other_titles": False})
+    r = c.get("/api/search", params={"cv": True, "min_match": 0}).json()
+    assert len(r["jobs"]) == 3 and r["hidden"] == []
+
+
+@pytest.mark.parametrize("title", ["פקיד/ת בק אופיס למחלקת שיווק", "בק אופיס למחלקת מכירות", "פקיד /ה בק אופיס למחסן",
+                                   "עובד/ת שירות לקוחות וניהול משרד", "מזכיר /ה למשרד עו\"ד"])
+def test_office_jobs_kept_for_secretary(title):
+    from jobsearch_il.cv import missing_title, title_context
+
+    ctx = title_context("מזכירה משפטית\nאדמיניסטרציה", CVProfile(roles=["Office / Administration"]))
+    assert missing_title(Job(source="t", title=title, url="u"), ctx) is None
+
+
+
+@pytest.mark.parametrize("title,desc", [
+    ("מנהל /ת חשבונות מקצועי /ת", "ניסיון מוכח של שנה לפחות בעבודה בתוך משרד רואי חשבון (cpa) - חובה."),
+    ("מנהלת חשבונות במשרד יועץ מס מוביל", 'דרישות: ניסיון במשרד רו"ח / יועץ מס של שלוש שנים לפחות.'),
+    ("מנהלת חשבונות לקוחות וספקים", 'הכנת דו"חות כספיים שנתיים לביקורת רו"ח. משרה מלאה דרישות: תעודת הנה"ח'),
+])
+def test_bookkeeper_jobs_mentioning_cpa_are_kept(title, desc):
+    from jobsearch_il.cv import missing_title, title_context
+
+    ctx = title_context("מנהלת חשבונות סוג 3", CVProfile(roles=["Bookkeeper / Accountant"]))
+    assert missing_title(Job(source="t", title=title, url="u", description=desc), ctx) is None
+    # ...but a CPA job is still hidden for this CV
+    assert missing_title(Job(source="t", title='רו"ח למשרד מוביל', url="u"), ctx) == "רואה חשבון"

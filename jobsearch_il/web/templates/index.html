@@ -75,6 +75,7 @@
   </div>
 </div>
 <div class="count" id="count"></div>
+<details class="hiddenbox" id="hiddenbox" hidden><summary></summary><ul></ul></details>
 <div id="results"></div>
 <footer>התוצאות נאספות מאתרי הדרושים ומקושרות למודעה המקורית. משרה שמופיעה בכמה אתרים מוצגת פעם אחת.</footer>
 </div>
@@ -85,7 +86,7 @@ const $ = s => document.querySelector(s);
 const form = $('#form');
 const NAMES = Object.fromEntries(BOOT.sources.map(s => [s.name, s.display_name]));
 const ACTIVE = BOOT.sources.filter(s => s.active);
-let jobs = [], newSet = new Set(), tab = 'results', lastParams = null;
+let jobs = [], newSet = new Set(), tab = 'results', lastParams = null, hiddenJobs = [];
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const total = Object.values(BOOT.stats).reduce((a, b) => a + b, 0);
@@ -137,7 +138,9 @@ function renderCV() {
       <div id="cvmsg"></div></div>`;
   } else {
     const p = CV.profile;
-    const tag = (kind, v, label) => `<span class="tag ${kind === 'roles' ? 'role' : ''}">${esc(label || v)}<button type="button" aria-label="הסרה" data-kind="${kind}" data-v="${esc(v)}">×</button></span>`;
+    p.include = p.include || []; p.exclude = p.exclude || [];
+    const cls = {roles: 'role', skills: '', include: 'inc', exclude: 'exc'};
+    const tag = (kind, v, label) => `<span class="tag ${cls[kind]}">${esc(label || v)}<button type="button" aria-label="הסרה" data-kind="${kind}" data-v="${esc(v)}">×</button></span>`;
     cvbox.innerHTML = `<div class="cvhead">
         <span>📄 <b>${esc(CV.filename)}</b> <span class="muted">· ${new Date(CV.uploaded_at).toLocaleDateString('he-IL')}${p.years ? ` · כ-${p.years} שנות ניסיון` : ''}</span></span>
         <span class="actions"><label>החלפה<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label><button type="button" id="cvdel">מחיקה</button></span>
@@ -146,6 +149,14 @@ function renderCV() {
       <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="+ הוספת תפקיד" data-add="roles"></div>
       <div class="taglabel">כישורים שזוהו</div>
       <div class="tags">${p.skills.map(x => tag('skills', x)).join('')}<input type="text" placeholder="+ הוספת כישור" data-add="skills"></div>
+      <div class="filterrows">
+        <div><div class="taglabel">➕ לחפש גם</div>
+          <div class="tags">${p.include.map(x => tag('include', x)).join('')}<input type="text" placeholder="+ למשל: ניסיון עם כספים" data-add="include" style="width:190px"></div></div>
+        <div><div class="taglabel">🚫 לא להציג משרות עם</div>
+          <div class="tags">${p.exclude.map(x => tag('exclude', x)).join('')}<input type="text" placeholder="+ למשל: חשבת שכר" data-add="exclude" style="width:170px"></div></div>
+      </div>
+      <label class="cvopt"><input type="checkbox" id="hideOther" ${p.hide_other_titles !== false ? 'checked' : ''}>
+        להסתיר משרות בתפקיד או בתואר שלא מופיעים בקורות החיים (למשל עורך דין, כשבקורות החיים יש רק ידע במשפטים)</label>
       <div class="muted" style="font-size:12px;margin-top:10px">החיפוש באתרים: ${CV.queries.map(esc).join(' · ') || '—'}</div>
       <div id="cvmsg"></div>`;
     cvbox.querySelectorAll('.tag button').forEach(b => b.onclick = () => {
@@ -154,14 +165,15 @@ function renderCV() {
     cvbox.querySelectorAll('input[data-add]').forEach(inp => inp.onkeydown = e => {
       if (e.key !== 'Enter') return; e.preventDefault();
       const v = inp.value.trim(), k = inp.dataset.add; if (!v || p[k].includes(v)) return;
-      saveProfile({...p, [k]: [...p[k], v]});
+      saveProfile({...p, [k]: [...p[k], v]}).then(() => cvbox.querySelector(`input[data-add=${k}]`)?.focus());
     });
+    $('#hideOther').onchange = e => saveProfile({...p, hide_other_titles: e.target.checked});
     $('#cvdel').onclick = async () => { await api('/api/cv', {method: 'DELETE'}); CV = null; renderCV(); };
   }
   $('#cvfile').onchange = e => e.target.files[0] && uploadCV(e.target.files[0]);
 }
 async function saveProfile(p) {
-  try { CV = (await api('/api/cv', {method: 'PUT', body: JSON.stringify({roles: p.roles, skills: p.skills})})).cv; renderCV(); }
+  try { CV = (await api('/api/cv', {method: 'PUT', body: JSON.stringify({roles: p.roles, skills: p.skills, include: p.include, exclude: p.exclude, hide_other_titles: p.hide_other_titles !== false})})).cv; renderCV(); }
   catch (e) { $('#cvmsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
 }
 async function uploadCV(file) {
@@ -276,7 +288,7 @@ async function load(q, which) {
   tab = which;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === which));
   const d = await api('/api/search?' + q);
-  jobs = d.jobs; if (which === 'results') { newSet = new Set(jobs.filter(j => j.is_new).map(j => j.uid)); }
+  jobs = d.jobs; hiddenJobs = which === 'results' ? (d.hidden || []) : []; if (which === 'results') { newSet = new Set(jobs.filter(j => j.is_new).map(j => j.uid)); }
   $('#toolbar').hidden = false; render();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
@@ -293,6 +305,15 @@ function render() {
   list = [...list].sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : 0; });
   const nNew = list.filter(j => newSet.has(j.uid)).length;
   $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם שלך` : '') : '';
+  const hb = $('#hiddenbox');
+  hb.hidden = !hiddenJobs.length || tab !== 'results';
+  if (hiddenJobs.length) {
+    const nEx = hiddenJobs.filter(h => h.why === 'exclude').length, nTi = hiddenJobs.length - nEx;
+    hb.querySelector('summary').textContent = `הוסתרו ${hiddenJobs.length} משרות` +
+      [nEx ? `${nEx} לפי "לא להציג"` : '', nTi ? `${nTi} בתפקיד שלא מופיע בקורות החיים` : ''].filter(Boolean).map(x => ` · ${x}`).join('');
+    hb.querySelector('ul').innerHTML = hiddenJobs.map(h => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a>
+      ${h.company ? `· ${esc(h.company)}` : ''} <span class="why">(${h.why === 'exclude' ? 'מכיל' : 'דורש'}: ${esc(h.term)})</span></li>`).join('');
+  }
   if (!list.length) { $('#results').innerHTML = `<div class="empty">${tab === 'results' ? 'לא נמצאו משרות. נסו מילים אחרות או הרחיבו את האזור.' : 'אין עדיין משרות ברשימה הזו.'}</div>`; return; }
   $('#results').innerHTML = list.map(card).join('');
 }
