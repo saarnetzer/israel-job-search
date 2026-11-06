@@ -24,6 +24,8 @@ class Source(ABC):
     homepage: str = ""
     needs_config: bool = False
     """True for sources that only work after configuring company lists etc."""
+    full_description: bool = True
+    """False when result lists carry only a snippet: keyword matching then trusts the site's own search."""
 
     def __init__(self, http: HttpClient, config: dict[str, Any] | None = None):
         self.http = http

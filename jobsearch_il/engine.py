@@ -62,7 +62,11 @@ class JobSearchEngine:
         queries = [criteria.keywords] if criteria.match_all or len(criteria.keywords) <= 1 else [[k] for k in criteria.keywords]
         for kws in queries:
             sub = SearchCriteria(**{**criteria.__dict__, "keywords": kws})
-            jobs.extend(src.search(sub))
+            for j in src.search(sub):
+                if not src.full_description and kws:
+                    # the site matched these keywords against text we don't have (full description)
+                    j.extra.setdefault("site_matched", []).extend(kws)
+                jobs.append(j)
         return jobs
 
     def search(self, criteria: SearchCriteria, workers: int = 8) -> SearchResult:

@@ -33,7 +33,8 @@ def matches(job: Job, c: SearchCriteria, now: datetime | None = None) -> bool:
     searchable = job.title if c.title_only else f"{job.title} {job.description}"
 
     if c.keywords:
-        hits = [keyword_in(searchable, k) for k in c.keywords]
+        site = set() if c.title_only else {normalize(k) for k in job.extra.get("site_matched", [])}
+        hits = [normalize(k) in site or keyword_in(searchable, k) for k in c.keywords]
         if not (all(hits) if c.match_all else any(hits)):
             return False
     if c.exclude_keywords and any(keyword_in(f"{job.title} {job.description}", k, synonyms=False) for k in c.exclude_keywords):

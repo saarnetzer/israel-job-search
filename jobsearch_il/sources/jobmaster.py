@@ -46,6 +46,7 @@ def parse_results(html: str) -> list[Job]:
 
 
 class JobMasterSource(Source):
+    full_description = False
     name = "jobmaster"
     display_name = "JobMaster"
     homepage = BASE

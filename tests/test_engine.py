@@ -73,3 +73,19 @@ def test_web(tmp_path):
     assert [j["uid"] for j in saved["jobs"]] == [uid]
     check = client.get("/api/check").json()
     assert check["fake"]["ok"] is True and check["broken"]["ok"] is False
+
+
+class SnippetSource(Source):
+    """Like JobMaster/LinkedIn: the site matched the keyword, but we only get a title."""
+    name = "snippet"
+    full_description = False
+
+    def search(self, criteria):
+        yield Job(source="snippet", title="Data Analyst", url="https://s/1", company="C", location="Tel Aviv")
+
+
+def test_trusts_site_match_when_no_full_description(tmp_path):
+    eng = JobSearchEngine({}, store=JobStore(tmp_path / "s.db"), sources={"snippet": SnippetSource})
+    assert len(eng.search(SearchCriteria(keywords=["python"])).jobs) == 1
+    assert eng.search(SearchCriteria(keywords=["python"], title_only=True)).jobs == []
+    assert eng.search(SearchCriteria(keywords=["python"], exclude_keywords=["analyst"])).jobs == []

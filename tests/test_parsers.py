@@ -13,7 +13,10 @@ F = Path(__file__).parent / "fixtures"
 
 def test_alljobs():
     jobs = parse_alljobs((F / "alljobs.html").read_text(encoding="utf-8"))
-    assert len(jobs) == 2
+    assert len(jobs) == 3  # closed job skipped
+    m = jobs[2]
+    assert m.company == "חברה חסויה"
+    assert m.job_type == "משרה מלאה, עבודה היברידית"
     j = jobs[0]
     assert "backend" in j.title and "Developer" in j.title
     assert j.company == "Nishapro"

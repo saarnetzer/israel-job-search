@@ -37,6 +37,7 @@ def parse_results(html: str) -> list[Job]:
 
 
 class LinkedInSource(Source):
+    full_description = False
     name = "linkedin"
     display_name = "LinkedIn"
     homepage = BASE

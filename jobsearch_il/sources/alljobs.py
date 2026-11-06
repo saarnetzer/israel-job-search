@@ -19,6 +19,17 @@ from .base import Source, first_attr, first_text, parse_jsonld_jobs, soup
 BASE = "https://www.alljobs.co.il"
 JOB_ID_RE = re.compile(r"JobID=(\d+)", re.I)
 LABEL_RE = re.compile(r"^\s*(מיקום המשרה|סוג משרה)\s*:?\s*")
+NOT_A_TYPE = re.compile(r"^(מתאים גם|לדוברי)")
+
+
+def _job_type(box) -> str:
+    el = box.select_one("[class*=job-content-top-type]")
+    if not el:
+        return ""
+    items = [d.get_text(" ", strip=True) for d in el.select(".job-types-content > div")]
+    if items:  # "מספר סוגים" dropdown: keep scopes, drop "suitable also for ..." tags
+        return ", ".join(i for i in items if i and not NOT_A_TYPE.match(i))
+    return re.sub(r"\s+", " ", LABEL_RE.sub("", el.get_text(" ", strip=True)))
 
 TITLE = "[class*=job-content-top-title]"
 LOCATION = "[class*=job-content-top-location]"
@@ -32,6 +43,9 @@ def parse_results(html: str) -> list[Job]:
         m = JOB_ID_RE.search(href or "")
         if not title or not m:
             continue
+        title_el = box.select_one(TITLE)
+        if title_el and "closed-job" in (title_el.get("class") or []):
+            continue  # AllJobs still lists some closed postings
         loc_el = box.select_one(LOCATION)
         cities: list[str] = []
         if loc_el:
@@ -50,7 +64,7 @@ def parse_results(html: str) -> list[Job]:
             company=first_text(box, f"{TITLE} .T14 a", f"{TITLE} .T14"),
             location=", ".join(c for c in cities if c),
             description=desc[:4000],
-            job_type=LABEL_RE.sub("", first_text(box, "[class*=job-content-top-type]")),
+            job_type=_job_type(box),
             posted_at=parse_date(first_text(box, ".job-content-top-date")),
             external_id=m.group(1),
         ))
