@@ -146,7 +146,8 @@ function renderCV() {
         <span class="actions"><label>החלפה<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label><button type="button" id="cvdel">מחיקה</button></span>
       </div>
       <div class="taglabel">תפקידים שזוהו (חשובים יותר, בעיקר בכותרת המשרה)</div>
-      <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="+ הוספת תפקיד" data-add="roles"></div>
+      <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="+ הוספת תפקיד" data-add="roles" title="תפקיד שתוסיפו נלמד ויזוהה גם בקורות חיים של משתמשים אחרים"></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">חסר תפקיד? הוסיפו אותו. הוא יילמד ויעזור לזהות אותו גם אצל אחרים.</div>
       <div class="taglabel">כישורים שזוהו</div>
       <div class="tags">${p.skills.map(x => tag('skills', x)).join('')}<input type="text" placeholder="+ הוספת כישור" data-add="skills"></div>
       <div class="filterrows">

@@ -258,3 +258,97 @@ def test_dot_and_parenthesis_gender_forms():
     assert "Project Manager" in _title_roles("קבוצת אשטרום מגייסת מנהל.ת פרויקטים")
     assert phrase_in("דרוש.ה חשב.ת שכר", "חשבת שכר")
     assert phrase_in("מנהל(ת) חשבונות", "מנהל חשבונות")
+
+
+# ------------------------------------------------------------------ titles straight from the CV
+def test_titles_from_cv_structure():
+    from cv_samples import CUSTOM_CV
+    from jobsearch_il.cv import extract_cv_titles
+
+    assert extract_cv_titles(EN_CV) == ["Senior Backend Developer", "Backend Developer", "Software Engineer"]
+    assert extract_cv_titles(HE_CV) == ["מנהלת חשבונות סוג 3", "מנהלת חשבונות", "מזכירה ואדמיניסטרציה"]
+    assert extract_cv_titles(CUSTOM_CV) == ["רכזת פרט ותגמול", "Scrum Master", "מזכירה"]
+
+
+def test_unknown_titles_become_roles_and_searches():
+    from cv_samples import CUSTOM_CV
+
+    p = extract_profile(CUSTOM_CV)
+    assert p.roles[:2] == ["רכזת פרט ותגמול", "Scrum Master"]  # not in the dictionary, found anyway
+    q = search_queries(p)
+    assert q[:2] == ["רכזת פרט ותגמול", "Scrum Master"] and "Scrum" not in q
+    # titles that are just known roles don't add duplicate tags
+    assert extract_profile(EN_CV).roles == ["Backend Developer", "Software Engineer"]
+    assert extract_profile(HE_CV).roles == ["Bookkeeper / Accountant", "Office / Administration"]
+
+
+def test_jobs_with_own_title_always_show_and_score():
+    from cv_samples import CUSTOM_CV
+    from jobsearch_il.cv import missing_title, title_context
+
+    p = extract_profile(CUSTOM_CV)
+    ctx = title_context(CUSTOM_CV, p)
+    assert missing_title(Job(source="t", title="רכז/ת פרט ותגמול לחברה מובילה", url="u"), ctx) is None
+    assert missing_title(Job(source="t", title="Scrum Master - Fintech", url="u"), ctx) is None
+    assert missing_title(Job(source="t", title="נהג/ת חלוקה", url="u"), ctx) == "נהג"
+    score, matched = score_job(Job(source="t", title="רכז/ת פרט ותגמול", url="u", description="חילן, אקסל"), p)
+    assert score >= 70 and "רכזת פרט ותגמול" in matched  # 1 of 2 skills (no Scrum in this job)
+
+
+def test_valid_learned_role():
+    from jobsearch_il.cv import valid_learned_role
+
+    assert valid_learned_role("מתאם/ת פגישות") == "מתאם פגישות"
+    assert valid_learned_role("מתאמת פגישות") == "מתאם פגישות"
+    assert valid_learned_role("רכזת פרט ותגמול") == "רכז פרט ותגמול"
+    assert valid_learned_role("Scrum Master") == "Scrum Master"
+    for bad in ("מנהל", "Senior Manager", "Office / Administration", "<script>", "a", "x " * 10):
+        assert valid_learned_role(bad) is None, bad
+
+
+def test_user_added_roles_grow_the_shared_dictionary(db_url):
+    class Src(Source):
+        name = "fake"
+
+        def search(self, criteria):
+            yield Job(source="fake", title="מתאם/ת פגישות למוקד", url="https://f/1", description="אקסל")
+            yield Job(source="fake", title="מנהלת חשבונות", url="https://f/2", description="חשבשבת")
+
+    app = create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": Src}))
+
+    def user(email, cv_text):
+        c = TestClient(app)
+        c.post("/register", data={"email": email, "password": "password123", "password2": "password123"})
+        c.post("/api/cv", files={"file": ("cv.txt", cv_text.encode(), "text/plain")})
+        return c
+
+    bookkeeper = user("bk@example.com", "רונית\nמנהלת חשבונות\n2019 - היום: מנהלת חשבונות, משרד\nחשבשבת, אקסל")
+    bookkeeper.get("/api/search", params={"live": True, "q": "x"})
+
+    def hidden_titles():
+        r = bookkeeper.get("/api/search", params={"cv": True, "min_match": 0}).json()
+        return [h["title"] for h in r["hidden"]]
+
+    assert hidden_titles() == []  # nobody taught "מתאם פגישות" yet: unknown role, kept
+
+    a = user("a@example.com", "דנה\nמזכירה\n2019 - היום: מזכירה, מוקד\nאקסל")
+    cv = a.get("/api/cv").json()["cv"]
+    a.put("/api/cv", json={"roles": cv["profile"]["roles"] + ["מתאמת פגישות"]})
+    # a third user whose CV mentions it gets it detected automatically
+    c = user("c@example.com", "יעל\nמוקדנית\nניסיון כמתאמת פגישות במוקד רפואי\nאקסל")
+    prof = c.get("/api/cv").json()["cv"]["profile"]
+    assert "מתאם פגישות" in prof["roles"] and prof["terms"]["מתאם פגישות"] == "מתאמת פגישות"
+    assert hidden_titles() == []  # one user is not enough to hide jobs for others
+
+    b = user("b@example.com", "גל לוי\nמוקדן\n2020 - היום: מוקדן, מוקד שירות\nאקסל")
+    cv = b.get("/api/cv").json()["cv"]
+    b.put("/api/cv", json={"roles": cv["profile"]["roles"] + ["מתאם/ת פגישות"]})  # same role, other gender
+    assert hidden_titles() == ["מתאם/ת פגישות למוקד"]  # confirmed by 2 users: now a known role
+
+    generic = user("g@example.com", "עמית כהן\nמחסנאי\n2020 - היום: מחסנאי, רשת אופנה\nאקסל")
+    cv = generic.get("/api/cv").json()["cv"]
+    generic.put("/api/cv", json={"roles": cv["profile"]["roles"] + ["מנהל"]})
+    from jobsearch_il.auth import UserStore
+
+    learned = UserStore(JobStore(db_url).engine).learned_roles()
+    assert learned == {"מתאם פגישות": 2}  # one key for both genders; the generic "מנהל" was not learned

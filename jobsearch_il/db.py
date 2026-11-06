@@ -70,6 +70,20 @@ cvs = sa.Table(
     sa.Column("uploaded_at", sa.DateTime, nullable=False),
 )
 
+# roles users added by hand, shared by everyone so the role dictionary grows
+learned_roles = sa.Table(
+    "learned_roles", metadata,
+    sa.Column("term", sa.String(80), primary_key=True),
+    sa.Column("created_at", sa.DateTime, nullable=False),
+)
+
+learned_role_users = sa.Table(
+    "learned_role_users", metadata,
+    sa.Column("term", sa.String(80), primary_key=True),
+    sa.Column("user_id", sa.Integer, primary_key=True),
+    sa.Column("created_at", sa.DateTime, nullable=False),
+)
+
 
 def make_engine(url: str) -> sa.Engine:
     """Accept a file path, sqlite:// URL, or postgres(ql):// URL (Neon/Render style)."""

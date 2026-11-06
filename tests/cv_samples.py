@@ -62,3 +62,15 @@ def docx_bytes(text: str) -> bytes:
     buf = io.BytesIO()
     d.save(buf)
     return buf.getvalue()
+
+CUSTOM_CV = """נועה ברק
+רכזת פרט ותגמול
+רמת גן | noa@example.com
+
+ניסיון תעסוקתי
+2021 - היום: רכזת פרט ותגמול, חברת ביטוח
+2018 - 2021: Scrum Master, StartupY
+2016 - 2018: מזכירה, משרד הנדסה
+
+כישורים: אקסל, חילן, מירב
+"""

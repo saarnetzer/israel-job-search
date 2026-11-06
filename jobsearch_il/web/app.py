@@ -14,8 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ..auth import AuthError, RateLimiter, UserStore
-from ..cv import (CVError, CVProfile, excluded_by, extract_profile, extract_text, missing_title, score_job,
-                  search_queries, title_context)
+from ..cv import (LEARN_MIN_USERS, CVError, CVProfile, excluded_by, extract_profile, extract_text, is_known_role,
+                  missing_title, score_job, search_queries, title_context, valid_learned_role)
 from ..engine import JobSearchEngine
 from ..locations import REGIONS
 from ..models import SearchCriteria
@@ -255,7 +255,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             text = extract_text(file.filename or "", data)
         except CVError as e:
             raise HTTPException(400, str(e))
-        profile = extract_profile(text)
+        profile = extract_profile(text, learned=list(users.learned_roles()))
         users.save_cv(user["id"], file.filename or "cv", text, profile.to_dict())
         return {"cv": cv_info(user["id"])}
 
@@ -266,11 +266,18 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         if cv is None:
             raise HTTPException(404, "לא הועלו קורות חיים")
         profile = {**cv["profile"]}
+        old_roles = set(profile.get("roles") or [])
         for key in ("roles", "skills", "include", "exclude"):
             if key in data:
                 profile[key] = clean(data.get(key))
         if "hide_other_titles" in data:
             profile["hide_other_titles"] = bool(data["hide_other_titles"])
+        # roles typed by the user grow the shared role dictionary
+        added = [r for r in profile.get("roles", []) if r not in old_roles and not is_known_role(r)]
+        learned = [t for t in (valid_learned_role(r) for r in added) if t]
+        if learned:
+            users.learn_roles(user["id"], learned)
+            profile.setdefault("terms", {}).update({r: r for r in added})
         users.update_cv_profile(user["id"], profile)
         return {"cv": cv_info(user["id"])}
 
@@ -307,7 +314,8 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             if saved is None:
                 raise HTTPException(400, "לא הועלו קורות חיים")
             profile = CVProfile.from_dict(saved["profile"])
-            ctx = title_context(saved["text"], profile) if profile.hide_other_titles else None
+            confirmed = [t for t, n in users.learned_roles().items() if n >= LEARN_MIN_USERS]
+            ctx = title_context(saved["text"], profile, learned=confirmed) if profile.hide_other_titles else None
             limit, c.limit = c.limit, None
             c.keywords = []  # the CV decides relevance, in title and description
         jobs = engine.search_stored(c, status=status, user_id=user["id"])

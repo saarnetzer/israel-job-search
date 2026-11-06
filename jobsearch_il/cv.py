@@ -244,8 +244,101 @@ def _alias_pattern(alias: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![\w\u0590-\u05FF]){pre}{t}(?![\w\u0590-\u05FF])")
 
 
-def extract_profile(text: str) -> CVProfile:
-    """Detect roles (ranked: earlier + more frequent first) and skills mentioned in the CV."""
+# ---------------------------------------------------------------------------- titles straight from the CV text
+SENIORITY = {"senior", "sr", "sr.", "junior", "jr", "jr.", "lead", "principal", "staff", "head", "chief", "בכיר",
+             "בכירה", "ראשי", "ראשית", "זוטר", "זוטרה", "ג'וניור", "סניור"}
+# words that are never a role on their own (a user adding "מנהל" must not teach the system anything)
+GENERIC_ROLE_WORDS = {"מנהל", "מנהלת", "עובד", "עובדת", "משרה", "משרות", "דרוש", "דרושה", "דרושים", "תפקיד",
+                      "עוזר", "עוזרת", "נציג", "נציגה", "איש", "אשת", "מומחה", "מומחית", "manager", "engineer",
+                      "developer", "specialist", "worker", "employee", "job", "position", "assistant", "expert",
+                      "team", "צוות", "חברה", "company", "full", "time", "part", "סוג"}
+_SECTION = re.compile(r"^(ניסיון תעסוקתי|ניסיון מקצועי|ניסיון|השכלה|כישורים|שפות|תקציר|פרופיל|על עצמי|קורסים|"
+                      r"הסמכות|שירות צבאי|התנדבות|experience|work experience|professional experience|education|"
+                      r"skills|summary|profile|languages|certifications|military service|about)\s*:?$", re.I)
+_DATE_LINE = re.compile(
+    r"^(?:(?:0?[1-9]|1[0-2])[/.])?(?:19|20)\d\d\s*[-–—]\s*(?:(?:(?:0?[1-9]|1[0-2])[/.])?(?:19|20)\d\d|"
+    r"היום|כיום|עד היום|הווה|present|current|today|now)\s*[:\-–—|,]?\s*(.+)$", re.I)
+LEARN_MIN_USERS = 2
+"""A role users added is used to *hide* jobs only after this many different users added it."""
+
+
+def _clean_title(t: str) -> str:
+    t = _ungender(t)
+    t = re.split(r"\s[-–—]\s|[,|–—(;]|\s+at\s+|\s+@\s*", t, maxsplit=1)[0]
+    return re.sub(r"\s+", " ", t).strip(" .:-–'\"•*·\t")
+
+
+def _plausible_title(t: str) -> bool:
+    words = t.split()
+    return (1 <= len(words) <= 6 and len(t) <= 60 and "@" not in t and not re.search(r"\d{3,}", t)
+            and not _SECTION.match(t) and re.search(r"[A-Za-z\u05D0-\u05EA]{2,}", t) is not None)
+
+
+def extract_cv_titles(text: str) -> list[str]:
+    """Job titles as the CV writes them: the headline under the name and the title on each dated line
+    ("2019 - היום: מנהלת חשבונות, משרד ..."). No dictionary involved."""
+    lines = [l.strip(" \t-•*·") for l in text.splitlines() if l.strip(" \t-•*·")]
+    out: list[str] = []
+    for line in lines[1:5]:  # line 0 is the name
+        if _SECTION.match(line):
+            break
+        if "@" in line or "|" in line or re.search(r"\d{3,}", line):
+            continue
+        t = _clean_title(line)
+        if _plausible_title(t):
+            out.append(t)
+            break
+    for line in lines:
+        m = _DATE_LINE.match(line)
+        if m:
+            t = _clean_title(m.group(1))
+            if _plausible_title(t):
+                out.append(t)
+    seen, uniq = set(), []
+    for t in out:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            uniq.append(t)
+    return uniq[:6]
+
+
+def _covered_by_known(title: str, extra_terms: list[str] = ()) -> bool:
+    """True when every meaningful word of the title is already a known role word ("מזכירה ואדמיניסטרציה",
+    "Senior Backend Developer"), so it adds nothing new."""
+    clean = normalize(_ungender(title))
+    for group in ROLES:
+        for alias in group[1:]:
+            clean = _alias_pattern(alias).sub(" ", clean)
+    for term in extra_terms:
+        clean = _alias_pattern(term).sub(" ", clean)
+    rest = [w for w in re.findall(r"[\w\u0590-\u05FF'+#]+", clean)
+            if w.lower() not in SENIORITY | STOPWORDS | GENERIC_ROLE_WORDS and not w.isdigit() and len(w) > 1
+            and w not in "והבלמשכ"]
+    return not rest
+
+
+def valid_learned_role(term: str) -> str | None:
+    """Clean a role a user typed, or None if it's too generic/odd to share with other users."""
+    t = re.sub(r"\s+", " ", _ungender(term or "")).strip(" -'\".,")
+    if not 2 <= len(t) <= 50 or len(t.split()) > 5:
+        return None
+    if not re.fullmatch(r"[\w\u0590-\u05FF \-'\"./+#&]+", t):
+        return None
+    if any(t.lower() == g[0].lower() for g in ROLES):
+        return None
+    meaningful = [w for w in t.split() if w.lower() not in SENIORITY | STOPWORDS | GENERIC_ROLE_WORDS
+                  and len(w) >= 2 and not w.isdigit()]
+    return canonical_role(t) if meaningful else None
+
+
+def is_known_role(role: str) -> bool:
+    return any(g[0] == role for g in ROLES)
+
+
+def extract_profile(text: str, learned: list[str] = ()) -> CVProfile:
+    """Detect roles (ranked: earlier + more frequent first) and skills mentioned in the CV.
+
+    `learned` are roles other users added by hand; they're detected too when the CV mentions them."""
     norm = normalize(text)
     n = max(len(norm), 1)
     role_scores: dict[str, float] = {}
@@ -265,6 +358,19 @@ def extract_profile(text: str) -> CVProfile:
             role_scores[group[0]] = score
             terms[group[0]] = best
     roles = [r for r, _ in sorted(role_scores.items(), key=lambda kv: -kv[1])][:5]
+
+    # titles the CV writes that the dictionary doesn't know ("רכזת פרט ותגמול", "Scrum Master") come first:
+    # they're the most specific description of the person
+    custom = [t for t in extract_cv_titles(text) if not _covered_by_known(t)][:3]
+    # roles other users taught the system, when this CV mentions them (after the CV's own titles)
+    found_learned = [term for term in learned
+                     if phrase_in(text, term) and not any(phrase_in(c, term) for c in custom)][:2]
+    for c in custom:
+        terms[c] = c
+    for term in found_learned:  # show it the way this CV writes it ("מתאמת פגישות")
+        clean = normalize(_ungender(text))
+        terms[term] = next((v for v in _gender_variants(term) if _phrase_pattern(v).search(clean)), term)
+    roles = (custom + roles + found_learned)[:6]
 
     counts: Counter[str] = Counter()
     for skill in SKILLS:
@@ -295,17 +401,43 @@ def content_words(term: str) -> list[str]:
     return out or words
 
 
+_TO_FINAL = str.maketrans("כמנפצ", "ךםןףץ")
+_FROM_FINAL = str.maketrans("ךםןףץ", "כמנפצ")
+
+
 def _gender_variants(term: str) -> list[str]:
-    """"חשבת שכר" should also find "חשב/ת שכר" and "חשב שכר" (job ads write both genders)."""
+    """"חשבת שכר" should also find "חשב/ת שכר" and "חשב שכר" (job ads write both genders), and
+    "מתאם פגישות" should also find "מתאמת פגישות"."""
     variants = [term]
     words = term.split()
-    for i, w in enumerate(words):
-        if _HEB.search(w) and len(w) >= 4:
-            for suffix in ("ית", "ת", "ה"):
-                if w.endswith(suffix) and len(w) - len(suffix) >= 3:
-                    variants.append(" ".join(words[:i] + [w[: -len(suffix)]] + words[i + 1:]))
-                    break
+    for i, w in enumerate(words[:1]):  # the role noun comes first; later words ("לאנגלית") aren't gendered
+        if not _HEB.search(w) or len(w) < 3:
+            continue
+        alt = None
+        for suffix in ("ית", "ת", "ה"):  # feminine -> masculine, fixing the final letter (מתאמת -> מתאם)
+            if w.endswith(suffix) and len(w) - len(suffix) >= 3 and not w.endswith("ות"):  # not plurals
+                base = w[: -len(suffix)]
+                alt = base[:-1] + base[-1].translate(_TO_FINAL)
+                break
+        if alt is None and w[-1] in "ךםןףץ":  # masculine -> feminine (מתאם -> מתאמת)
+            alt = w[:-1] + w[-1].translate(_FROM_FINAL) + "ת"
+        if alt:
+            variants.append(" ".join(words[:i] + [alt] + words[i + 1:]))
     return variants
+
+
+def canonical_role(term: str) -> str:
+    """One key per role whatever gender it was typed in: "מתאמת פגישות" / "מתאם/ת פגישות" -> "מתאם פגישות"."""
+    words = []
+    for i, w in enumerate(_ungender(term).split()):
+        if i == 0 and _HEB.search(w) and len(w) >= 4 and not w.endswith("ות"):  # "פגישות" is a plural, keep it
+            for suffix in ("ית", "ת"):
+                if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+                    base = w[: -len(suffix)]
+                    w = base[:-1] + base[-1].translate(_TO_FINAL)
+                    break
+        words.append(w)
+    return " ".join(words)
 
 
 _GENDER_SLASH = re.compile(r"\s*[/.]\s*(?:ית|ה|ת|ים|ות|יות)(?![\u0590-\u05FF])|\((?:ית|ה|ת)\)")
@@ -354,7 +486,8 @@ def search_queries(profile: CVProfile, max_queries: int = 6) -> list[str]:
         role_terms.append(profile.terms.get(r) or (group[1] if group else r))
     wishes = [" ".join(content_words(t)) for t in profile.include[:3]]
     room = max(0, max_queries - len(role_terms) - len(wishes))
-    skills = [s for s in profile.skills if s not in CASE_SENSITIVE or len(s) > 2][:room]
+    skills = [s for s in profile.skills if (s not in CASE_SENSITIVE or len(s) > 2)
+              and not any(phrase_in(t, s) for t in role_terms)][:room]  # "Scrum" is in "Scrum Master"
     seen, out = set(), []
     for q in role_terms + wishes + skills:
         if q and q.lower() not in seen:
@@ -381,6 +514,14 @@ def score_job(job: Job, profile: CVProfile) -> tuple[int, list[str]]:
 
     role_part = 0.0
     for role in profile.roles[:3]:
+        if not is_known_role(role):  # a title from the CV / added by the user
+            if include_in(title, role):
+                role_part = 1.0
+                matched.append(role)
+            elif include_in(desc, role):
+                role_part = max(role_part, 0.4)
+                matched.append(role)
+            continue
         aliases = _role_aliases(role)
         if any(keyword_in(title, a, synonyms=False) for a in aliases):
             role_part = 1.0
@@ -463,9 +604,22 @@ class TitleContext:
     """What titles a CV has, computed once per search."""
     families: set[str]
     credentials: set[str]
+    own_titles: list[str] = field(default_factory=list)
+    """Titles from the CV / added by the user that the dictionary doesn't know: jobs with them always show."""
+    learned: dict[str, str] = field(default_factory=dict)
+    """Confirmed user-added roles -> their family (used to recognize roles in job titles)."""
 
 
-def title_context(cv_text: str, profile: CVProfile) -> TitleContext:
+def _learned_family(term: str) -> str:
+    """A learned role belongs to the family of a known role it contains ("מזכירה רפואית" -> office)."""
+    for group in ROLES:
+        fam = ROLE_FAMILY.get(group[0], group[0])
+        if fam and _has_alias(term, group[1:]):
+            return fam
+    return "learned:" + term.lower()
+
+
+def title_context(cv_text: str, profile: CVProfile, learned: list[str] = ()) -> TitleContext:
     own = "\n".join([cv_text, *profile.roles, *profile.include, *profile.terms.values()])
     families, creds = set(), set()
     for group in ROLES:
@@ -475,7 +629,12 @@ def title_context(cv_text: str, profile: CVProfile) -> TitleContext:
     for cred in CREDENTIALS:
         if _has_alias(own, cred[1:]):
             creds.add(cred[0])
-    return TitleContext(families, creds)
+    learned_fams = {t: _learned_family(t) for t in learned}
+    for t, fam in learned_fams.items():
+        if phrase_in(own, t):
+            families.add(fam)
+    own_titles = [r for r in profile.roles if not is_known_role(r)]
+    return TitleContext(families, creds, own_titles, learned_fams)
 
 
 # "משרד עו"ד", "חברת רו"ח", "law office": the title describes the workplace, not the job
@@ -505,26 +664,35 @@ def _required_in(clean: str, m: re.Match) -> bool:
 def missing_title(job: Job, ctx: TitleContext) -> str | None:
     """The title this job asks for that the CV doesn't have (None = the job is fine)."""
     title, desc = job.title or "", job.description or ""
-    title_fits = _title_families(title) & ctx.families
+    title_fits = set(_title_roles(title, ctx.learned)) & ctx.families
     for cred in CREDENTIALS:
         if cred[0] in ctx.credentials:
             continue
         if any(True for _ in _credential_hits(title, cred[1:])):
             return cred[0]
+    if any(include_in(title, t) for t in ctx.own_titles):
+        return None  # the job is literally one of the CV's own titles
+    for cred in CREDENTIALS:
+        if cred[0] in ctx.credentials:
+            continue
         # in the description only when the job isn't already one of the CV's roles: a bookkeeper ad that
         # mentions "work with the CPA" or "experience at a CPA office" is still a bookkeeper job
         if not title_fits and any(_required_in(clean, m) for clean, m in _credential_hits(desc, cred[1:])):
             return cred[0]
-    job_families = _title_roles(title)
+    job_families = _title_roles(title, ctx.learned)
     if job_families and not (set(job_families) & ctx.families):
         return next(iter(job_families.values()))
     return None
 
 
-def _title_roles(title: str) -> dict[str, str]:
+def _title_roles(title: str, learned: dict[str, str] | None = None) -> dict[str, str]:
     """Role families named in a job title -> the wording found (departments are skipped)."""
     out: dict[str, str] = {}
     clean_title = normalize(_ungender(title))
+    for term, fam in (learned or {}).items():
+        if any(not _DEPARTMENT.search(clean_title[max(0, m.start() - 25): m.start()])
+               for v in _gender_variants(term) for m in _phrase_pattern(v).finditer(clean_title)):
+            out.setdefault(fam, term)
     for group in ROLES:
         fam = ROLE_FAMILY.get(group[0], group[0])
         if fam is None:

@@ -126,7 +126,7 @@ class UserStore:
 
     def delete(self, user_id: int) -> None:
         with self.engine.begin() as conn:
-            for t in (db.sessions, db.saved_searches, db.user_jobs, db.cvs):
+            for t in (db.sessions, db.saved_searches, db.user_jobs, db.cvs, db.learned_role_users):
                 conn.execute(t.delete().where(t.c.user_id == user_id))
             conn.execute(db.users.delete().where(db.users.c.id == user_id))
 
@@ -229,3 +229,25 @@ class UserStore:
     def delete_cv(self, user_id: int) -> bool:
         with self.engine.begin() as conn:
             return conn.execute(db.cvs.delete().where(db.cvs.c.user_id == user_id)).rowcount > 0
+
+    # ------------------------------------------------------------ shared role dictionary
+    def learn_roles(self, user_id: int, terms: list[str]) -> None:
+        now = datetime.now()
+        with self.engine.begin() as conn:
+            for term in terms:
+                key = term[:80]
+                if not conn.execute(sa.select(db.learned_roles.c.term).where(db.learned_roles.c.term == key)).first():
+                    conn.execute(db.learned_roles.insert().values(term=key, created_at=now))
+                exists = conn.execute(sa.select(db.learned_role_users.c.term).where(sa.and_(
+                    db.learned_role_users.c.term == key, db.learned_role_users.c.user_id == user_id))).first()
+                if not exists:
+                    conn.execute(db.learned_role_users.insert().values(term=key, user_id=user_id, created_at=now))
+
+    def learned_roles(self) -> dict[str, int]:
+        """term -> number of different users who added it."""
+        q = (sa.select(db.learned_roles.c.term, sa.func.count(db.learned_role_users.c.user_id))
+             .select_from(db.learned_roles.outerjoin(db.learned_role_users,
+                                                     db.learned_role_users.c.term == db.learned_roles.c.term))
+             .group_by(db.learned_roles.c.term))
+        with self.engine.connect() as conn:
+            return {t: n for t, n in conn.execute(q)}
