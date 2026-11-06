@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         except ImportError:
             print("Install web extras: pip install 'jobsearch-il[web]'", file=sys.stderr)
             return 1
-        uvicorn.run(create_app(config, db_path), host=a.host, port=a.port)
+        uvicorn.run(create_app(config, db_url=db_path, secure_cookies=False), host=a.host, port=a.port)
         return 0
 
     store = JobStore(db_path)

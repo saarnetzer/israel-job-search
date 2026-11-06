@@ -1,105 +1,101 @@
-"""SQLite storage: keeps every job seen, so you can search offline and get only *new* jobs."""
+"""Job storage: a shared cache of every job seen, plus per-user statuses (saved/applied/hidden)."""
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+import sqlalchemy as sa
+
+from . import db
 from .models import Job
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS jobs (
-    uid TEXT PRIMARY KEY,
-    source TEXT NOT NULL,
-    title TEXT NOT NULL,
-    company TEXT,
-    location TEXT,
-    description TEXT,
-    url TEXT NOT NULL,
-    posted_at TEXT,
-    salary TEXT,
-    job_type TEXT,
-    remote INTEGER,
-    external_id TEXT,
-    extra TEXT,
-    first_seen TEXT NOT NULL,
-    last_seen TEXT NOT NULL,
-    status TEXT DEFAULT 'new'  -- new / saved / applied / hidden
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs(first_seen);
-CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
-"""
-
 STATUSES = ("new", "saved", "applied", "hidden")
+LOCAL_USER = 0
+"""Statuses set from the CLI belong to this pseudo-user."""
 
 
 class JobStore:
-    def __init__(self, path: str | Path = "jobs.db"):
-        self.path = str(path)
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
+    def __init__(self, url: str | Path = "jobs.db"):
+        self.url = str(url)
+        self.engine = db.make_engine(self.url)
 
     def upsert(self, jobs: Iterable[Job]) -> list[Job]:
-        """Store jobs; returns the ones never seen before."""
-        now = datetime.now().isoformat(timespec="seconds")
+        """Store jobs; returns the ones never seen before (by anyone)."""
+        jobs = list({j.uid: j for j in jobs}.values())
+        if not jobs:
+            return []
+        now = datetime.now()
         new: list[Job] = []
-        with self.conn:
+        with self.engine.begin() as conn:
+            existing: set[str] = set()
+            uids = [j.uid for j in jobs]
+            for i in range(0, len(uids), 500):
+                chunk = uids[i:i + 500]
+                existing.update(r[0] for r in conn.execute(sa.select(db.jobs.c.uid).where(db.jobs.c.uid.in_(chunk))))
+            if existing:
+                conn.execute(db.jobs.update().where(db.jobs.c.uid.in_(existing)).values(last_seen=now))
+            rows = []
             for j in jobs:
-                cur = self.conn.execute("UPDATE jobs SET last_seen=? WHERE uid=?", (now, j.uid))
-                if cur.rowcount:
+                if j.uid in existing:
                     continue
-                self.conn.execute(
-                    "INSERT INTO jobs (uid, source, title, company, location, description, url, posted_at, salary,"
-                    " job_type, remote, external_id, extra, first_seen, last_seen)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (j.uid, j.source, j.title, j.company, j.location, j.description, j.url,
-                     j.posted_at.isoformat() if j.posted_at else None, j.salary, j.job_type,
-                     None if j.remote is None else int(j.remote), j.external_id,
-                     json.dumps(j.extra, ensure_ascii=False), now, now),
-                )
+                rows.append(dict(
+                    uid=j.uid, source=j.source, title=j.title, company=j.company, location=j.location,
+                    description=j.description, url=j.url, posted_at=j.posted_at, salary=j.salary,
+                    job_type=j.job_type, remote=j.remote, external_id=j.external_id,
+                    extra=json.dumps(j.extra, ensure_ascii=False), first_seen=now, last_seen=now,
+                ))
                 new.append(j)
+            if rows:
+                conn.execute(db.jobs.insert(), rows)
         return new
 
     def all(self, sources: list[str] | None = None, include_hidden: bool = False,
-            status: str | None = None) -> list[Job]:
-        sql, args = "SELECT * FROM jobs WHERE 1=1", []
+            status: str | None = None, user_id: int = LOCAL_USER) -> list[Job]:
+        uj = db.user_jobs
+        j = db.jobs
+        q = (sa.select(j, uj.c.status)
+             .select_from(j.outerjoin(uj, sa.and_(uj.c.job_uid == j.c.uid, uj.c.user_id == user_id))))
         if sources:
-            sql += f" AND source IN ({','.join('?' * len(sources))})"
-            args += sources
+            q = q.where(j.c.source.in_(sources))
         if status:
-            sql += " AND status = ?"
-            args.append(status)
+            q = q.where(uj.c.status == status)
         elif not include_hidden:
-            sql += " AND status != 'hidden'"
-        sql += " ORDER BY COALESCE(posted_at, first_seen) DESC"
-        return [self._row_to_job(r) for r in self.conn.execute(sql, args)]
+            q = q.where(sa.or_(uj.c.status.is_(None), uj.c.status != "hidden"))
+        q = q.order_by(sa.func.coalesce(j.c.posted_at, j.c.first_seen).desc())
+        with self.engine.connect() as conn:
+            return [self._row_to_job(r) for r in conn.execute(q).mappings()]
 
-    def set_status(self, uid: str, status: str) -> bool:
+    def set_status(self, uid: str, status: str, user_id: int = LOCAL_USER) -> bool:
         if status not in STATUSES:
             raise ValueError(f"status must be one of {STATUSES}")
-        with self.conn:
-            return self.conn.execute("UPDATE jobs SET status=? WHERE uid=?", (status, uid)).rowcount > 0
+        with self.engine.begin() as conn:
+            if not conn.execute(sa.select(db.jobs.c.uid).where(db.jobs.c.uid == uid)).first():
+                return False
+            conn.execute(db.user_jobs.delete().where(
+                sa.and_(db.user_jobs.c.user_id == user_id, db.user_jobs.c.job_uid == uid)))
+            if status != "new":
+                conn.execute(db.user_jobs.insert().values(user_id=user_id, job_uid=uid, status=status,
+                                                          updated_at=datetime.now()))
+        return True
 
     def stats(self) -> dict[str, int]:
-        rows = self.conn.execute("SELECT source, COUNT(*) c FROM jobs GROUP BY source").fetchall()
-        return {r["source"]: r["c"] for r in rows}
+        q = sa.select(db.jobs.c.source, sa.func.count()).group_by(db.jobs.c.source)
+        with self.engine.connect() as conn:
+            return {s: c for s, c in conn.execute(q)}
 
     @staticmethod
-    def _row_to_job(r: sqlite3.Row) -> Job:
+    def _row_to_job(r) -> Job:
         extra = json.loads(r["extra"] or "{}")
-        extra.update(status=r["status"], first_seen=r["first_seen"])
+        extra.update(status=r["status"] or "new", first_seen=r["first_seen"].isoformat(timespec="seconds"))
         return Job(
             source=r["source"], title=r["title"], url=r["url"], company=r["company"] or "",
-            location=r["location"] or "", description=r["description"] or "",
-            posted_at=datetime.fromisoformat(r["posted_at"]) if r["posted_at"] else None,
-            salary=r["salary"] or "", job_type=r["job_type"] or "",
-            remote=None if r["remote"] is None else bool(r["remote"]),
+            location=r["location"] or "", description=r["description"] or "", posted_at=r["posted_at"],
+            salary=r["salary"] or "", job_type=r["job_type"] or "", remote=r["remote"],
             external_id=r["external_id"] or "", extra=extra,
         )
 
     def close(self) -> None:
-        self.conn.close()
+        self.engine.dispose()

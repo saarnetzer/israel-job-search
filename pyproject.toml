@@ -14,11 +14,12 @@ dependencies = [
   "beautifulsoup4>=4.12",
   "lxml>=5.0",
   "pyyaml>=6.0",
+  "sqlalchemy>=2.0",
 ]
 
 [project.optional-dependencies]
-web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1"]
-dev = ["pytest>=8", "fastapi>=0.110", "jinja2>=3.1", "httpx>=0.27"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "jinja2>=3.1", "python-multipart>=0.0.9", "psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "fastapi>=0.110", "jinja2>=3.1", "httpx>=0.27", "python-multipart>=0.0.9", "psycopg[binary]>=3.1"]
 
 [project.scripts]
 jobsearch-il = "jobsearch_il.cli:main"
@@ -27,7 +28,7 @@ jobsearch-il = "jobsearch_il.cli:main"
 include = ["jobsearch_il*"]
 
 [tool.setuptools.package-data]
-jobsearch_il = ["web/templates/*.html"]
+jobsearch_il = ["web/templates/*.html", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

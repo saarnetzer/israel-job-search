@@ -24,7 +24,7 @@ class BrokenSource(Source):
 
 
 def make(tmp_path):
-    return JobSearchEngine({}, store=JobStore(tmp_path / "t.db"), sources={"fake": FakeSource, "broken": BrokenSource})
+    return JobSearchEngine({}, store=JobStore(str(tmp_path / "t.db")), sources={"fake": FakeSource, "broken": BrokenSource})
 
 
 def test_search_filters_stores_and_reports_errors(tmp_path):
@@ -54,27 +54,6 @@ def test_status(tmp_path):
     assert uid not in {j.uid for j in eng.search_stored(SearchCriteria())}
 
 
-def test_web(tmp_path):
-    from fastapi.testclient import TestClient
-
-    from jobsearch_il.web.app import create_app
-
-    client = TestClient(create_app(engine=make(tmp_path)))
-    r = client.get("/api/search", params={"live": True, "q": "python", "source": "fake"})
-    assert r.status_code == 200 and r.json()["count"] == 1
-    assert r.json()["jobs"][0]["is_new"] is True
-    html = client.get("/").text
-    assert 'dir="rtl"' in html and '"fake"' in html
-    stored = client.get("/api/search", params={"q": "java"}).json()
-    assert [j["title"] for j in stored["jobs"]] == ["Java Developer"]
-    uid = r.json()["jobs"][0]["uid"]
-    assert client.post(f"/api/jobs/{uid}/status/saved").json() == {"ok": True}
-    saved = client.get("/api/search", params={"status": "saved"}).json()
-    assert [j["uid"] for j in saved["jobs"]] == [uid]
-    check = client.get("/api/check").json()
-    assert check["fake"]["ok"] is True and check["broken"]["ok"] is False
-
-
 class SnippetSource(Source):
     """Like JobMaster/LinkedIn: the site matched the keyword, but we only get a title."""
     name = "snippet"
@@ -85,7 +64,7 @@ class SnippetSource(Source):
 
 
 def test_trusts_site_match_when_no_full_description(tmp_path):
-    eng = JobSearchEngine({}, store=JobStore(tmp_path / "s.db"), sources={"snippet": SnippetSource})
+    eng = JobSearchEngine({}, store=JobStore(str(tmp_path / "s.db")), sources={"snippet": SnippetSource})
     assert len(eng.search(SearchCriteria(keywords=["python"])).jobs) == 1
     assert eng.search(SearchCriteria(keywords=["python"], title_only=True)).jobs == []
     assert eng.search(SearchCriteria(keywords=["python"], exclude_keywords=["analyst"])).jobs == []

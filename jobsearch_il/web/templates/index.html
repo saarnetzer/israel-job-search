@@ -1,75 +1,13 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>חיפוש עבודה בישראל</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-:root{--bg:#f4f6fa;--card:#fff;--text:#18202f;--muted:#5f6b7f;--accent:#2b5bdb;--accent-soft:#e8eefc;--border:#e2e6ee;--ok:#12805c;--ok-soft:#e3f5ee;--warn:#b54708;--warn-soft:#fdf0e3;--err:#c4320a;--shadow:0 1px 2px rgba(16,24,40,.06)}
-@media (prefers-color-scheme:dark){:root{--bg:#0f131a;--card:#181e28;--text:#e7ebf2;--muted:#9aa5b8;--accent:#7ea2ff;--accent-soft:#1f2a44;--border:#283142;--ok:#4cc995;--ok-soft:#14352a;--warn:#f5a454;--warn-soft:#3a2716;--err:#ff8a6b;--shadow:none}}
-*{box-sizing:border-box}
-body{margin:0;font-family:Heebo,system-ui,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
-a{color:var(--accent)}
-.wrap{max-width:1080px;margin:auto;padding:0 16px}
-header{padding:24px 0 12px}
-h1{margin:0;font-size:28px;font-weight:700}
-.sub{color:var(--muted);margin-top:4px}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
-.searchrow{display:grid;grid-template-columns:2fr 1.3fr auto;gap:10px}
-@media (max-width:720px){.searchrow{grid-template-columns:1fr}}
-input[type=text],input[type=number],select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;font:inherit;background:var(--bg);color:var(--text)}
-input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid transparent;padding:11px 18px}
-.primary{background:var(--accent);color:#fff;font-weight:500}
-.primary:disabled{opacity:.6;cursor:wait}
-.ghost{background:transparent;border-color:var(--border);color:var(--text)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.chip{border:1px solid var(--border);background:var(--bg);color:var(--text);padding:5px 12px;border-radius:99px;font-size:13px}
-.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
-details{margin-top:12px}
-summary{cursor:pointer;color:var(--accent);font-size:14px}
-.adv{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:12px}
-.adv label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
-.checks{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:14px}
-.checks label{display:flex;align-items:center;gap:6px}
-.progress{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
-.pstat{font-size:13px;padding:5px 10px;border-radius:8px;background:var(--card);border:1px solid var(--border);display:flex;gap:6px;align-items:center}
-.pstat.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
-.pstat.err{background:var(--warn-soft);color:var(--warn);border-color:transparent;cursor:help}
-.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}
-.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:20px 0 10px}
-.tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:3px}
-.tabs button{padding:6px 12px;border-radius:8px;font-size:14px;background:transparent;color:var(--muted)}
-.tabs button.on{background:var(--accent-soft);color:var(--accent);font-weight:500}
-.tools{display:flex;gap:8px;align-items:center}
-.tools input,.tools select{padding:7px 10px;width:auto;font-size:14px}
-.count{color:var(--muted);font-size:14px}
-.job{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
-.job h3{margin:0 0 6px;font-size:17px;font-weight:500;line-height:1.4}
-.job h3 a{text-decoration:none}
-.meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
-.badge{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);text-decoration:none;white-space:nowrap}
-.badge.new{color:var(--ok);border-color:var(--ok)}
-.badge.src{background:var(--accent-soft);color:var(--accent);border-color:transparent}
-.desc{margin-top:8px;font-size:14px;line-height:1.6;white-space:pre-line;max-height:4.8em;overflow:hidden;position:relative}
-.desc.open{max-height:none}
-.jobfoot{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.jobfoot button{padding:5px 10px;font-size:13px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px}
-.jobfoot button.on{color:var(--accent);border-color:var(--accent)}
-.empty{text-align:center;color:var(--muted);padding:40px 10px}
-.note{font-size:13px;color:var(--muted);margin-top:10px}
-footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0}
-</style>
+{% include "_head.html" %}
 </head>
 <body>
 <div class="wrap">
-<header>
-  <h1>🔎 חיפוש עבודה בישראל</h1>
-  <div class="sub" id="sub"></div>
-</header>
+{% include "_topbar.html" %}
+<div class="sub" id="sub"></div>
 
 <form class="panel" id="form" autocomplete="off">
   <div class="searchrow">
@@ -111,6 +49,11 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0}
     </div>
     <div class="checks" id="sourceChecks"></div>
   </details>
+  <div class="savedrow">
+    <span class="muted">חיפושים שמורים:</span>
+    <select id="savedSel" aria-label="חיפושים שמורים"></select>
+    <button type="button" class="ghost" id="saveSearch">💾 שמירת החיפוש</button>
+  </div>
   <div class="progress" id="progress"></div>
 </form>
 
@@ -162,47 +105,84 @@ form.location.addEventListener('input', syncChips);
 $('#sourceChecks').innerHTML = '<span style="color:var(--muted)">אתרים:</span>' + BOOT.sources.map(s =>
   `<label title="${s.active ? '' : 'דורש הגדרה ב-config.yaml'}"><input type="checkbox" name="src" value="${s.name}" ${s.active ? 'checked' : 'disabled'}> ${esc(s.display_name)}</label>`).join('');
 
-// remember the last search in this browser
-try { const saved = JSON.parse(localStorage.getItem('jsil-form') || '{}');
-  for (const [k, v] of Object.entries(saved)) { const el = form.elements[k]; if (!el || el.length) continue;
-    el.type === 'checkbox' ? el.checked = v : el.value = v; } syncChips(); } catch (e) {}
+function fill(values) {
+  form.reset();
+  for (const [k, v] of Object.entries(values || {})) {
+    if (k === 'source') continue;
+    const el = form.elements[k]; if (!el || el instanceof RadioNodeList) continue;
+    el.type === 'checkbox' ? el.checked = !!v : el.value = v ?? '';
+  }
+  const src = (values || {}).source;
+  if (Array.isArray(src) && src.length) form.querySelectorAll('input[name=src]').forEach(c => { if (!c.disabled) c.checked = src.includes(c.value); });
+  syncChips();
+}
+fill(BOOT.user.settings.defaults);
+
+const api = (url, opts = {}) => fetch(url, {...opts, headers: {'Content-Type': 'application/json', ...(opts.headers || {})}})
+  .then(async r => { if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
+                     const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || r.status); return d; });
+
+function formValues() {
+  const v = {};
+  for (const el of form.elements) {
+    if (!el.name || el.name === 'src') continue;
+    const x = el.type === 'checkbox' ? el.checked : el.value.trim();
+    if (x !== '' && x !== false) v[el.name] = x;
+  }
+  v.source = selectedSources();
+  return v;
+}
+
+let searches = BOOT.searches;
+function renderSaved() {
+  $('#savedSel').innerHTML = '<option value="">' + (searches.length ? 'בחרו…' : 'אין עדיין') + '</option>' +
+    searches.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+}
+renderSaved();
+$('#savedSel').onchange = () => { const s = searches.find(x => String(x.id) === $('#savedSel').value); if (s) { fill(s.params); form.requestSubmit(); } };
+$('#saveSearch').onclick = async () => {
+  const name = prompt('שם לחיפוש (למשל: פייתון במרכז)'); if (!name) return;
+  try { const d = await api('/api/searches', {method: 'POST', body: JSON.stringify({name, params: formValues()})});
+        searches = d.searches; renderSaved(); $('#savedSel').value = d.id; }
+  catch (e) { alert(e.message); }
+};
 
 function params() {
   const p = new URLSearchParams();
-  const store = {};
   for (const el of form.elements) {
     if (!el.name || el.name === 'src') continue;
     const v = el.type === 'checkbox' ? el.checked : el.value.trim();
-    store[el.name] = v;
     if (v === '' || v === false) continue;
     p.set(el.name, v === true ? 'true' : v);
   }
-  try { localStorage.setItem('jsil-form', JSON.stringify(store)); } catch (e) {}
   return p;
 }
 const selectedSources = () => [...form.querySelectorAll('input[name=src]:checked')].map(x => x.value);
 
 form.addEventListener('submit', async ev => {
   ev.preventDefault();
-  const p = params(); lastParams = p;
+  const p = params();
   const srcs = selectedSources();
   if (!srcs.length) { alert('בחרו לפחות אתר אחד'); return; }
   $('#go').disabled = true; newSet = new Set();
+  let since = null;
+  try { since = (await api('/api/search/since')).since; } catch (e) { $('#go').disabled = false; return; }
   $('#progress').innerHTML = srcs.map(s => `<span class="pstat" id="p-${s}"><span class="spin"></span><bdi>${esc(NAMES[s])}</bdi></span>`).join('');
   // scan each site in parallel so slow/blocked sites don't hold up the others
   await Promise.all(srcs.map(async s => {
     const q = new URLSearchParams(p); q.set('live', 'true'); q.set('source', s);
     const el = $('#p-' + s);
     try {
-      const r = await fetch('/api/search?' + q); const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.status);
-      d.jobs.filter(j => j.is_new).forEach(j => newSet.add(j.uid));
+      const d = await api('/api/search?' + q);
       if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: שגיאה (העבירו עכבר לפרטים)</span>`; el.title = d.errors[s]; }
       else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ <bdi>${esc(NAMES[s])}</bdi>: ${d.per_source[s] ?? 0} נסרקו, ${d.count} מתאימות</span>`; }
     } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi></span>`; el.title = String(e); }
   }));
   // merged + deduped view straight from the local database
   const q = new URLSearchParams(p); srcs.forEach(s => q.append('source', s));
+  q.set('since', since || '');
+  lastParams = new URLSearchParams(q);
+  q.set('mark', 'true');  // remember when this search finished, for next time's "new" badges
   await load(q, 'results');
   $('#go').disabled = false;
 });
@@ -210,12 +190,13 @@ form.addEventListener('submit', async ev => {
 async function load(q, which) {
   tab = which;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === which));
-  const r = await fetch('/api/search?' + q); const d = await r.json();
-  jobs = d.jobs; $('#toolbar').hidden = false; render();
+  const d = await api('/api/search?' + q);
+  jobs = d.jobs; if (which === 'results') { newSet = new Set(jobs.filter(j => j.is_new).map(j => j.uid)); }
+  $('#toolbar').hidden = false; render();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   const t = b.dataset.tab;
-  if (t === 'results') { if (lastParams) { const q = new URLSearchParams(lastParams); selectedSources().forEach(s => q.append('source', s)); load(q, t); } else { jobs = []; tab = t; render(); } }
+  if (t === 'results') { if (lastParams) load(new URLSearchParams(lastParams), t); else { jobs = []; tab = t; render(); } }
   else load(new URLSearchParams({status: t}), t);
 });
 $('#quick').oninput = render; $('#sort').onchange = render;
@@ -226,7 +207,7 @@ function render() {
   const key = { date: j => -(Date.parse(j.posted_at) || 0), company: j => j.company || 'תתת', source: j => j.source }[sort];
   list = [...list].sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : 0; });
   const nNew = list.filter(j => newSet.has(j.uid)).length;
-  $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם` : '') : '';
+  $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם שלך` : '') : '';
   if (!list.length) { $('#results').innerHTML = `<div class="empty">${tab === 'results' ? 'לא נמצאו משרות. נסו מילים אחרות או הרחיבו את האזור.' : 'אין עדיין משרות ברשימה הזו.'}</div>`; return; }
   $('#results').innerHTML = list.map(card).join('');
 }
@@ -255,8 +236,7 @@ function card(j) {
 }
 
 async function mark(uid, status, btn) {
-  const r = await fetch(`/api/jobs/${uid}/status/${status}`, {method: 'POST'});
-  if (!r.ok) { btn.textContent = 'שגיאה'; return; }
+  try { await api(`/api/jobs/${uid}/status/${status}`, {method: 'POST'}); } catch (e) { btn.textContent = 'שגיאה'; return; }
   const j = jobs.find(x => x.uid === uid); if (j) { j.extra = {...(j.extra || {}), status}; }
   if (status === 'hidden') { jobs = jobs.filter(x => x.uid !== uid); }
   render();

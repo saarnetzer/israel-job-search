@@ -11,7 +11,7 @@ from .filters import dedupe, filter_jobs, sort_jobs
 from .http import HttpClient
 from .models import Job, SearchCriteria
 from .sources import SOURCES, Source
-from .storage import JobStore
+from .storage import LOCAL_USER, JobStore
 
 log = logging.getLogger(__name__)
 
@@ -97,11 +97,13 @@ class JobSearchEngine:
         result.new_jobs = [j for j in matched if j.uid in new_uids]
         return result
 
-    def search_stored(self, criteria: SearchCriteria, status: str | None = None) -> list[Job]:
+    def search_stored(self, criteria: SearchCriteria, status: str | None = None,
+                      user_id: int = LOCAL_USER) -> list[Job]:
         """Search the local database without hitting the network."""
         if self.store is None:
             return []
-        jobs = sort_jobs(filter_jobs(self.store.all(criteria.sources or None, status=status), criteria))
+        jobs = self.store.all(criteria.sources or None, status=status, user_id=user_id)
+        jobs = sort_jobs(filter_jobs(jobs, criteria))
         return jobs[: criteria.limit] if criteria.limit else jobs
 
     def check(self, query: str = "developer") -> dict[str, dict[str, Any]]:

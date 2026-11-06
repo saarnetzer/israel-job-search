@@ -1,0 +1,16 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: israel-job-search
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL      # Neon connection string (postgresql://...); Render's disk is wiped on restart
+        sync: false
+      - key: INVITE_CODE       # optional: people need this code to register. Leave empty for open registration
+        sync: false
+      - key: REGISTRATION      # "open" or "closed"
+        value: open
