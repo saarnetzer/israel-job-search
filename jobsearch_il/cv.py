@@ -8,72 +8,20 @@ from __future__ import annotations
 
 import io
 import re
+from functools import lru_cache
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
 from .models import Job
+from .roles_data import CREDENTIALS, ROLE_FAMILY, ROLES
 from .textutil import keyword_in, normalize
 
 MAX_CV_BYTES = 5 * 1024 * 1024
 MAX_CV_CHARS = 30_000
 
 # ---------------------------------------------------------------------------- lexicon
-# Job titles. The first item of each group is the display name; the rest are aliases.
-ROLES: list[list[str]] = [
-    ["Full Stack Developer", "full stack", "fullstack", "full-stack", "פולסטאק", "מפתח פול סטאק", "מפתחת פול סטאק"],
-    ["Backend Developer", "backend developer", "backend engineer", "back-end developer", "server side", "מפתח backend",
-     "מפתחת backend", "מפתח צד שרת"],
-    ["Frontend Developer", "frontend developer", "frontend engineer", "front-end developer", "מפתח frontend",
-     "מפתחת frontend", "מפתח צד לקוח"],
-    ["Software Engineer", "software engineer", "software developer", "מהנדס תוכנה", "מהנדסת תוכנה", "מפתח תוכנה",
-     "מפתחת תוכנה", "מתכנת", "מתכנתת"],
-    ["Mobile Developer", "mobile developer", "android developer", "ios developer", "מפתח מובייל", "מפתחת מובייל"],
-    ["DevOps Engineer", "devops", "site reliability", "sre", "platform engineer", "מהנדס devops", "דבאופס"],
-    ["QA Engineer", "qa engineer", "qa automation", "automation engineer", "software tester", "בודק תוכנה",
-     "בודקת תוכנה", "בודק תוכנה ואוטומציה", "מהנדס בדיקות", "אוטומציה"],
-    ["Data Analyst", "data analyst", "bi analyst", "business analyst", "אנליסט נתונים", "אנליסטית נתונים",
-     "אנליסט bi", "מנתח נתונים", "אנליסט", "אנליסטית"],
-    ["Data Scientist", "data scientist", "machine learning engineer", "ml engineer", "מדען נתונים", "מדענית נתונים"],
-    ["Data Engineer", "data engineer", "etl developer", "מהנדס נתונים", "מהנדסת נתונים"],
-    ["Product Manager", "product manager", "product owner", "מנהל מוצר", "מנהלת מוצר"],
-    ["Project Manager", "project manager", "program manager", "מנהל פרויקטים", "מנהלת פרויקטים", "מנהל פרויקט",
-     "מנהלת פרויקט"],
-    ["UX/UI Designer", "ux designer", "ui designer", "product designer", "graphic designer", "מעצב", "מעצבת",
-     "מעצב גרפי", "מעצבת גרפית"],
-    ["Security Engineer", "security engineer", "cyber security", "penetration tester", "חוקר סייבר", "אבטחת מידע",
-     "סייבר"],
-    ["Embedded Engineer", "embedded", "firmware", "מהנדס embedded", "תוכנה משובצת"],
-    ["Hardware Engineer", "hardware engineer", "electrical engineer", "מהנדס חשמל", "מהנדסת חשמל",
-     "מהנדס אלקטרוניקה", "הנדסאי אלקטרוניקה"],
-    ["IT / System Administrator", "system administrator", "sysadmin", "it support", "help desk", "helpdesk",
-     "מנהל רשת", "מנהל מערכות", "תמיכה טכנית", "טכנאי מחשבים"],
-    ["Team Lead", "team lead", "team leader", "tech lead", "ראש צוות"],
-    ["Bookkeeper / Accountant", "bookkeeper", "accountant", "cpa", "מנהלת חשבונות", "מנהל חשבונות", "הנהלת חשבונות",
-     "רואה חשבון", "רואת חשבון", "חשב", "חשבת", "כספים"],
-    ["Customer Service", "customer service", "customer support", "customer success", "שירות לקוחות",
-     "נציג שירות", "נציגת שירות", "מוקדן", "מוקדנית"],
-    ["Sales", "sales representative", "account manager", "business development", "מכירות", "איש מכירות",
-     "אשת מכירות", "נציג מכירות", "נציגת מכירות", "מנהל לקוחות"],
-    ["Marketing", "marketing manager", "digital marketing", "performance marketing", "content writer", "seo",
-     "שיווק", "מנהל שיווק", "מנהלת שיווק", "שיווק דיגיטלי", "קופירייטר", "קופירייטרית"],
-    ["HR / Recruitment", "human resources", "hr manager", "recruiter", "talent acquisition", "משאבי אנוש",
-     "גיוס", "רכזת גיוס", "רכז גיוס"],
-    ["Office / Administration", "office manager", "administrative assistant", "secretary", "back office",
-     "backoffice", "מזכירה", "מזכיר", "מזכירה משפטית", "מזכירה רפואית", "אדמיניסטרציה", "אדמיניסטרטיבי",
-     "אדמיניסטרטיבית", "מנהלת משרד", "רכזת", "רכז", "בק אופיס", "בק-אופיס", "פקיד", "פקידה", "פקידת", "עובד משרד",
-     "עובדת משרד", "ניהול משרד", "רפרנט", "רפרנטית", "תפעול"],
-    ["Logistics / Warehouse", "logistics", "warehouse", "supply chain", "procurement", "לוגיסטיקה", "מחסן",
-     "מחסנאי", "רכש", "שרשרת אספקה"],
-    ["Driver", "driver", "נהג", "נהגת", "שליח"],
-    ["Technician", "technician", "טכנאי", "טכנאית", "חשמלאי", "אחזקה"],
-    ["Teacher", "teacher", "tutor", "מורה", "מדריך", "מדריכה", "גננת"],
-    ["Nurse / Healthcare", "nurse", "caregiver", "אח", "אחות", "מטפל", "מטפלת", "רוקח", "רוקחת"],
-    ["Lawyer", "lawyer", "attorney", "legal counsel", "עורך דין", "עורכת דין", "עו\"ד", "משפטן", "משפטנית"],
-    ["Civil Engineer / Architect", "civil engineer", "architect", "מהנדס אזרחי", "מהנדסת אזרחית", "אדריכל",
-     "אדריכלית", "מהנדס בניין"],
-]
-
+# Job titles live in roles_data.py (families of related roles + licensed titles).
 SKILLS: list[str] = [
     # languages & frameworks
     "Python", "Java", "JavaScript", "TypeScript", "C#", "C++", "Go", "Golang", "Rust", "Kotlin", "Swift", "PHP",
@@ -214,11 +162,19 @@ def extract_text(filename: str, data: bytes) -> str:
 
 
 # ---------------------------------------------------------------------------- profile
-def _skill_in(text: str, skill: str) -> bool:
+@lru_cache(maxsize=4096)
+def _skill_pattern(skill: str) -> re.Pattern[str] | None:
     if skill in CASE_SENSITIVE:
-        return re.search(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])", text) is not None
+        return re.compile(rf"(?<![A-Za-z0-9]){re.escape(skill)}(?![A-Za-z0-9])")
     if re.fullmatch(r"[A-Za-z0-9.+#/ \-]+", skill):
-        return re.search(rf"(?<![A-Za-z0-9]){re.escape(skill.lower())}(?![A-Za-z0-9+#])", text.lower()) is not None
+        return re.compile(rf"(?<![A-Za-z0-9]){re.escape(skill.lower())}(?![A-Za-z0-9+#])", re.I)
+    return None  # Hebrew: prefix-aware keyword matching
+
+
+def _skill_in(text: str, skill: str) -> bool:
+    pat = _skill_pattern(skill)
+    if pat is not None:
+        return pat.search(text) is not None
     return keyword_in(text, skill, synonyms=False)
 
 
@@ -237,6 +193,13 @@ def _years_of_experience(text: str) -> int | None:
     return None
 
 
+# aliases that recognize a job title but are too broad to search with
+GENERIC_SEARCH_WORDS = {"developer", "programmer", "operator", "מפתח", "מפתחת", "מפעיל", "מפעילה", "טכנאי", "טכנאית",
+                        "מטפל", "מטפלת", "רכז", "רכזת", "פקיד", "פקידה", "נהג", "נהגת", "חוקר", "חוקרת", "qa",
+                        "technician", "driver", "admin", "מוכר", "מוכרת"}
+
+
+@lru_cache(maxsize=20000)
 def _alias_pattern(alias: str) -> re.Pattern[str]:
     """Whole-word match; Hebrew may carry attached prefixes (ו/ה/ב/ל/מ/ש/כ)."""
     t = re.escape(normalize(alias)).replace(r"\ ", r"[\s\-]*")
@@ -350,9 +313,17 @@ def extract_profile(text: str, learned: list[str] = ()) -> CVProfile:
             for m in _alias_pattern(alias).finditer(norm):
                 alias_score += 1.0 + 2.0 * (1 - m.start() / n)  # headline / recent jobs weigh more
             score += alias_score
-            # the most prominent wording (headline, frequency); a longer one wins a near-tie
-            if alias_score and (best is None or alias_score > best_score * 1.2
-                                or (alias_score >= best_score * 0.8 and len(alias) > len(best))):
+            # the most prominent wording (headline, frequency); on a near-tie the wording the CV uses
+            # verbatim wins ("backend developer" over "back end developer"), then the longer one
+            # a generic word ("developer", "מפתח") is never preferred as the wording to search with
+            exact = normalize(alias) in norm
+            generic = alias.lower() in GENERIC_SEARCH_WORDS
+            best_generic = best is not None and best.lower() in GENERIC_SEARCH_WORDS
+            if alias_score and (best is None or (best_generic and not generic)
+                                or (generic == best_generic and (
+                                    alias_score > best_score * 1.2
+                                    or (alias_score >= best_score * 0.8
+                                        and (exact, len(alias)) > (normalize(best) in norm, len(best)))))):
                 best, best_score = alias, alias_score
         if score:
             role_scores[group[0]] = score
@@ -440,14 +411,16 @@ def canonical_role(term: str) -> str:
     return " ".join(words)
 
 
-_GENDER_SLASH = re.compile(r"\s*[/.]\s*(?:ית|ה|ת|ים|ות|יות)(?![\u0590-\u05FF])|\((?:ית|ה|ת)\)")
+_GENDER_SLASH = re.compile(r"([\u05D0-\u05EA]?)(?:\s*[/.]\s*(?:ית|ה|ת|ים|ות|יות)(?![\u0590-\u05FF])|\((?:ית|ה|ת)\))")
 
 
+@lru_cache(maxsize=8192)
 def _ungender(text: str) -> str:
-    """"חשב /ת שכר" -> "חשב שכר"."""
-    return _GENDER_SLASH.sub("", text or "")
+    """"חשב /ת שכר" -> "חשב שכר", "עורכ.ת דין" -> "עורך דין" (the masculine form ends in a final letter)."""
+    return _GENDER_SLASH.sub(lambda m: m.group(1).translate(_TO_FINAL), text or "")
 
 
+@lru_cache(maxsize=5000)
 def _phrase_pattern(term: str) -> re.Pattern[str]:
     """Whole-word phrase; every Hebrew word may carry attached prefixes ("לחשבת השכר")."""
     parts = []
@@ -563,32 +536,6 @@ def score_job(job: Job, profile: CVProfile) -> tuple[int, list[str]]:
 
 
 # ---------------------------------------------------------------------------- titles the CV doesn't have
-# Roles in the same family count as the same title (a backend developer may take a full stack job).
-ROLE_FAMILY: dict[str, str | None] = {
-    "Full Stack Developer": "dev", "Backend Developer": "dev", "Frontend Developer": "dev",
-    "Software Engineer": "dev", "Mobile Developer": "dev",
-    "Team Lead": None,  # a seniority word, not a profession
-}
-
-# Licensed / protected titles: the CV must have the title itself, related knowledge isn't enough
-# ("ידע במשפטים" is not "עורך דין").
-CREDENTIALS: list[list[str]] = [
-    ["עורך דין", "עורך דין", "עורכת דין", "עו\"ד", "עוה\"ד", "עריכת דין", "lawyer", "attorney", "advocate"],
-    ["רואה חשבון", "רואה חשבון", "רואת חשבון", "רו\"ח", "cpa", "certified public accountant"],
-    ["רופא", "רופא", "רופאה", "רופא משפחה", "physician", "medical doctor"],
-    ["רופא שיניים", "רופא שיניים", "רופאת שיניים", "dentist"],
-    ["אחות מוסמכת", "אח מוסמך", "אחות מוסמכת", "registered nurse"],
-    ["פסיכולוג", "פסיכולוג", "פסיכולוגית", "psychologist"],
-    ["רוקח", "רוקח", "רוקחת", "pharmacist"],
-    ["עובד סוציאלי", "עובד סוציאלי", "עובדת סוציאלית", "עו\"ס", "social worker"],
-    ["פיזיותרפיסט", "פיזיותרפיסט", "פיזיותרפיסטית", "physiotherapist"],
-    ["שמאי", "שמאי", "שמאית", "appraiser"],
-    ["יועץ מס", "יועץ מס", "יועצת מס", "tax advisor"],
-    ["חשמלאי מוסמך", "חשמלאי מוסמך", "חשמלאי ראשי", "חשמלאי בכיר", "רישיון חשמלאי"],
-    ["אדריכל", "אדריכל", "אדריכלית"],
-    ["מהנדס בניין", "מהנדס בניין", "מהנדסת בניין", "מהנדס אזרחי", "מהנדסת אזרחית", "civil engineer"],
-]
-
 # words that make a credential in the job description a requirement, not just context
 _REQUIRE = re.compile(r"דרוש|דרושה|דרושים|דרישות|חובה|רישיון|רשיון|מוסמך|מוסמכת|בעל|בעלת|לפחות|תואר|הסמכה|"
                       r"required|requirements|must|licen[cs]e|licensed|certified|qualified", re.I)
@@ -647,7 +594,10 @@ _DEPARTMENT = re.compile(r"(?:^|[\s(])[והבלמשכ]{0,3}(?:מחלקת|מחל�
 
 def _credential_hits(text: str, aliases: list[str]):
     clean = normalize(_ungender(text))
+    words = _words_with_prefix_variants(clean)
     for alias in aliases:
+        if _first_word(alias) not in words:
+            continue
         for m in _alias_pattern(alias).finditer(clean):
             if not _WORKPLACE.search(clean[max(0, m.start() - 20): m.start()]):
                 yield clean, m
@@ -685,24 +635,81 @@ def missing_title(job: Job, ctx: TitleContext) -> str | None:
     return None
 
 
-def _title_roles(title: str, learned: dict[str, str] | None = None) -> dict[str, str]:
-    """Role families named in a job title -> the wording found (departments are skipped)."""
-    out: dict[str, str] = {}
-    clean_title = normalize(_ungender(title))
-    for term, fam in (learned or {}).items():
-        if any(not _DEPARTMENT.search(clean_title[max(0, m.start() - 25): m.start()])
-               for v in _gender_variants(term) for m in _phrase_pattern(v).finditer(clean_title)):
-            out.setdefault(fam, term)
+_PREFIX_LETTERS = "והבלמשכ"
+
+
+@lru_cache(maxsize=8192)
+def _first_word(alias: str) -> str:
+    w = normalize(alias).replace("-", " ").split()
+    return w[0] if w else ""
+
+
+@lru_cache(maxsize=1)
+def _role_index() -> dict[str, list[tuple[str | None, str]]]:
+    """first word of each alias -> [(family, alias)], so a title is only checked against aliases
+    that share a word with it (instead of all ~1,200)."""
+    idx: dict[str, list[tuple[str | None, str]]] = {}
     for group in ROLES:
         fam = ROLE_FAMILY.get(group[0], group[0])
-        if fam is None:
-            continue
         for alias in group[1:]:
-            hits = [m for m in _alias_pattern(alias).finditer(clean_title)
-                    if not _DEPARTMENT.search(clean_title[max(0, m.start() - 25): m.start()])]
-            if hits:
-                out.setdefault(fam, alias)
+            idx.setdefault(_first_word(alias), []).append((fam, alias))
+    return idx
+
+
+@lru_cache(maxsize=1)
+def _credential_index() -> dict[str, list[tuple[str, str]]]:
+    idx: dict[str, list[tuple[str, str]]] = {}
+    for cred in CREDENTIALS:
+        for alias in cred[1:]:
+            idx.setdefault(_first_word(alias), []).append((cred[0], alias))
+    return idx
+
+
+@lru_cache(maxsize=4096)
+def _words_with_prefix_variants(clean: str) -> frozenset[str]:
+    """Words of a text, plus each Hebrew word without up to 3 attached prefix letters ("לחשב" -> "חשב")."""
+    out: set[str] = set()
+    for w in re.findall(r"[\w\u0590-\u05FF\"'.+#/]+", clean.replace("-", " ")):
+        w = w.strip(".")
+        out.add(w)
+        for k in range(1, 4):
+            if len(w) > k + 1 and w[k - 1] in _PREFIX_LETTERS and _HEB.match(w):
+                out.add(w[k:])
+            else:
                 break
+    return frozenset(out)
+
+
+def _candidates(clean: str, index: dict) -> list:
+    words = _words_with_prefix_variants(clean)
+    return [item for w in words for item in index.get(w, ())]
+
+
+def _title_roles(title: str, learned: dict[str, str] | None = None) -> dict[str, str]:
+    """Role families named in a job title -> the wording found.
+
+    Departments are skipped ("בק אופיס למחלקת מכירות"), and the most specific match wins:
+    in "חשב/ת שכר" the payroll role covers the shorter "חשב"."""
+    clean_title = normalize(_ungender(title))
+    hits: list[tuple[int, int, str | None, str]] = []  # start, end, family, alias
+
+    def collect(fam: str | None, alias: str, pattern: re.Pattern[str]) -> None:
+        for m in pattern.finditer(clean_title):
+            if not _DEPARTMENT.search(clean_title[max(0, m.start() - 25): m.start()]):
+                hits.append((m.start(), m.end(), fam, alias))
+
+    for term, fam in (learned or {}).items():
+        for v in _gender_variants(term):
+            collect(fam, term, _phrase_pattern(v))
+    for fam, alias in _candidates(clean_title, _role_index()):
+        collect(fam, alias, _alias_pattern(alias))
+    out: dict[str, str] = {}
+    for s0, e0, fam, alias in sorted(hits, key=lambda h: h[0] - h[1]):  # longest first
+        if fam is None:
+            continue  # a position word ("ראש צוות"), not a profession
+        if any(s1 <= s0 and e0 <= e1 and (e1 - s1) > (e0 - s0) for s1, e1, _, _ in hits):
+            continue  # inside a longer, more specific match
+        out.setdefault(fam, alias)
     return out
 
 

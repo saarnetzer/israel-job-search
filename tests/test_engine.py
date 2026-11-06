@@ -68,3 +68,47 @@ def test_trusts_site_match_when_no_full_description(tmp_path):
     assert len(eng.search(SearchCriteria(keywords=["python"])).jobs) == 1
     assert eng.search(SearchCriteria(keywords=["python"], title_only=True)).jobs == []
     assert eng.search(SearchCriteria(keywords=["python"], exclude_keywords=["analyst"])).jobs == []
+
+
+def test_stored_search_scoped_to_this_scan(tmp_path):
+    import time as _time
+    from datetime import datetime, timedelta
+
+    eng = make(tmp_path)
+    eng.search(SearchCriteria(sources=["fake"]))  # an earlier scan: 2 jobs stored
+    eng.store.upsert([Job(source="fake", title="Old Python job", url="https://f/old", company="Z")])
+    _time.sleep(1.1)
+    start = datetime.now() - timedelta(seconds=0.5)
+    eng.search(SearchCriteria(sources=["fake"]))  # this scan touches only the 2 fake jobs
+    everything = eng.search_stored(SearchCriteria(keywords=["python"]))
+    scoped = eng.search_stored(SearchCriteria(keywords=["python"]), seen_after=start)
+    assert {j.title for j in everything} == {"Python Developer", "Old Python job"}
+    assert [j.title for j in scoped] == ["Python Developer"]
+
+
+def test_time_budget_and_partial_failures(tmp_path):
+    import time as _time
+
+    calls = []
+
+    class Slow(Source):
+        name = "slow"
+
+        def search(self, criteria):
+            calls.append(criteria.query)
+            if criteria.query == "bad":
+                raise RuntimeError("blocked")
+            _time.sleep(0.3)
+            yield Job(source="slow", title=f"{criteria.query} job", url=f"https://s/{criteria.query}")
+
+    eng = JobSearchEngine({}, store=JobStore(str(tmp_path / "b.db")), sources={"slow": Slow})
+    # one failing query doesn't lose the others
+    res = eng.search(SearchCriteria(keywords=["a", "bad", "b"]))
+    assert {j.title for j in res.jobs} == {"a job", "b job"} and res.errors == {}
+    # after the budget no more queries start
+    calls.clear()
+    res = eng.search(SearchCriteria(keywords=["q1", "q2", "q3", "q4", "q5"]), budget_s=0.5)
+    assert 1 <= len(calls) < 5 and res.jobs
+    # all queries failing is reported as an error
+    res = eng.search(SearchCriteria(keywords=["bad"]))
+    assert "slow" in res.errors

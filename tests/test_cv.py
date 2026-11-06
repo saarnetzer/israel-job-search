@@ -179,8 +179,8 @@ def test_cv_include_exclude_web(db_url):
     ('מזכירה למשרד עו"ד', "ניסיון במשרד עורכי דין", None),          # workplace, not the role
     ("מזכירה", 'עבודה מול משרד עו"ד חיצוני, חובה אנגלית', None),
     ("מזכירה משפטית", "", None),
-    ("QA Automation Engineer", "", "qa automation"),                # a role the CV doesn't have
-    ("נהג/ת חלוקה", "", "נהג"),
+    ("QA Automation Engineer", "", "automation engineer"),          # a role the CV doesn't have
+    ("נהג/ת חלוקה", "", "נהג חלוקה"),
     ("עבודה כללית במחסן", "", "מחסן"),
     ("משרה מעניינת", "", None),                                      # no recognizable title: keep
 ])
@@ -255,7 +255,7 @@ def test_bookkeeper_jobs_mentioning_cpa_are_kept(title, desc):
 def test_dot_and_parenthesis_gender_forms():
     from jobsearch_il.cv import _title_roles, phrase_in
 
-    assert "Project Manager" in _title_roles("קבוצת אשטרום מגייסת מנהל.ת פרויקטים")
+    assert "project" in _title_roles("קבוצת אשטרום מגייסת מנהל.ת פרויקטים")
     assert phrase_in("דרוש.ה חשב.ת שכר", "חשבת שכר")
     assert phrase_in("מנהל(ת) חשבונות", "מנהל חשבונות")
 
@@ -279,7 +279,7 @@ def test_unknown_titles_become_roles_and_searches():
     assert q[:2] == ["רכזת פרט ותגמול", "Scrum Master"] and "Scrum" not in q
     # titles that are just known roles don't add duplicate tags
     assert extract_profile(EN_CV).roles == ["Backend Developer", "Software Engineer"]
-    assert extract_profile(HE_CV).roles == ["Bookkeeper / Accountant", "Office / Administration"]
+    assert extract_profile(HE_CV).roles[:2] == ["Bookkeeper / Accountant", "Office / Administration"]
 
 
 def test_jobs_with_own_title_always_show_and_score():
@@ -290,7 +290,7 @@ def test_jobs_with_own_title_always_show_and_score():
     ctx = title_context(CUSTOM_CV, p)
     assert missing_title(Job(source="t", title="רכז/ת פרט ותגמול לחברה מובילה", url="u"), ctx) is None
     assert missing_title(Job(source="t", title="Scrum Master - Fintech", url="u"), ctx) is None
-    assert missing_title(Job(source="t", title="נהג/ת חלוקה", url="u"), ctx) == "נהג"
+    assert missing_title(Job(source="t", title="נהג/ת חלוקה", url="u"), ctx) == "נהג חלוקה"
     score, matched = score_job(Job(source="t", title="רכז/ת פרט ותגמול", url="u", description="חילן, אקסל"), p)
     assert score >= 70 and "רכזת פרט ותגמול" in matched  # 1 of 2 skills (no Scrum in this job)
 

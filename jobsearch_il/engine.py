@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
@@ -56,25 +58,41 @@ class JobSearchEngine:
                 log.warning("source %s requested but not configured (see config.example.yaml)", name)
         return out
 
-    def _run_source(self, src: Source, criteria: SearchCriteria) -> list[Job]:
+    def _run_source(self, src: Source, criteria: SearchCriteria, budget_s: float | None = None) -> list[Job]:
+        """Run the search on one site. With several keywords (OR) each is searched separately.
+
+        A query that fails doesn't lose the others' results, and once `budget_s` seconds have passed
+        no further queries are started, so a slow or blocking site can't stall the whole search."""
         jobs: list[Job] = []
-        # Most boards handle one free-text query best; with OR semantics query each keyword.
         queries = [criteria.keywords] if criteria.match_all or len(criteria.keywords) <= 1 else [[k] for k in criteria.keywords]
+        deadline = time.monotonic() + budget_s if budget_s else None
+        last_error: Exception | None = None
         for kws in queries:
+            if deadline and time.monotonic() > deadline:
+                log.info("source %s: time budget reached, skipping remaining queries", src.name)
+                break
             sub = SearchCriteria(**{**criteria.__dict__, "keywords": kws})
-            for j in src.search(sub):
-                if not src.full_description and kws:
-                    # the site matched these keywords against text we don't have (full description)
-                    j.extra.setdefault("site_matched", []).extend(kws)
-                jobs.append(j)
+            try:
+                for j in src.search(sub):
+                    if not src.full_description and kws:
+                        # the site matched these keywords against text we don't have (full description)
+                        j.extra.setdefault("site_matched", []).extend(kws)
+                    jobs.append(j)
+                    if deadline and time.monotonic() > deadline + 10:
+                        break  # stop paging a site that is far over its budget
+            except Exception as e:
+                last_error = e
+                log.warning("source %s query %r failed: %s", src.name, kws, e)
+        if not jobs and last_error is not None:
+            raise last_error
         return jobs
 
-    def search(self, criteria: SearchCriteria, workers: int = 8) -> SearchResult:
+    def search(self, criteria: SearchCriteria, workers: int = 8, budget_s: float | None = None) -> SearchResult:
         result = SearchResult(jobs=[])
         raw: list[Job] = []
         sources = self.enabled_sources(criteria.sources or None)
         with ThreadPoolExecutor(max_workers=max(1, min(workers, len(sources) or 1))) as pool:
-            futures = {pool.submit(self._run_source, s, criteria): s for s in sources}
+            futures = {pool.submit(self._run_source, s, criteria, budget_s): s for s in sources}
             for fut in as_completed(futures):
                 src = futures[fut]
                 try:
@@ -98,11 +116,14 @@ class JobSearchEngine:
         return result
 
     def search_stored(self, criteria: SearchCriteria, status: str | None = None,
-                      user_id: int = LOCAL_USER) -> list[Job]:
-        """Search the local database without hitting the network."""
+                      user_id: int = LOCAL_USER, seen_after: datetime | None = None) -> list[Job]:
+        """Search the local database without hitting the network.
+
+        `seen_after` limits it to jobs found by a scan that started at that time, so a search only
+        looks at its own results, not at every job ever stored."""
         if self.store is None:
             return []
-        jobs = self.store.all(criteria.sources or None, status=status, user_id=user_id)
+        jobs = self.store.all(criteria.sources or None, status=status, user_id=user_id, seen_after=seen_after)
         jobs = sort_jobs(filter_jobs(jobs, criteria))
         return jobs[: criteria.limit] if criteria.limit else jobs
 

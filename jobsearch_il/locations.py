@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 # canonical Hebrew city name -> aliases (English + common spellings)
 CITIES: dict[str, list[str]] = {
@@ -94,11 +95,13 @@ REMOTE_TERMS = ["remote", "work from home", "wfh", "מהבית", "עבודה מ�
 ISRAEL_TERMS = ["israel", "ישראל", "il"]
 
 
+@lru_cache(maxsize=8192)
 def _norm(s: str) -> str:
     s = s.lower().replace("־", " ").replace("-", " ").replace("״", '"').replace("׳", "'")
     return re.sub(r"\s+", " ", s).strip()
 
 
+@lru_cache(maxsize=1024)
 def city_terms(city: str) -> list[str]:
     for canon, aliases in CITIES.items():
         if _norm(city) == _norm(canon) or _norm(city) in (_norm(a) for a in aliases):
@@ -106,6 +109,7 @@ def city_terms(city: str) -> list[str]:
     return [city]
 
 
+@lru_cache(maxsize=1024)
 def expand_location(term: str) -> list[str]:
     """Expand a user location (city or region, any language) into all matching terms."""
     t = _norm(term)
@@ -118,10 +122,15 @@ def expand_location(term: str) -> list[str]:
     return city_terms(term)
 
 
+@lru_cache(maxsize=8192)
+def _short_pattern(n: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![\w]){re.escape(n)}(?![\w])")
+
+
 def _contains(haystack: str, needle: str) -> bool:
     n = _norm(needle)
     if len(n) <= 3:  # short aliases (ים, תא, il) need whole-word matches
-        return re.search(rf"(?<![\w]){re.escape(n)}(?![\w])", haystack) is not None
+        return _short_pattern(n).search(haystack) is not None
     return n in haystack
 
 

@@ -53,13 +53,15 @@ class JobStore:
         return new
 
     def all(self, sources: list[str] | None = None, include_hidden: bool = False,
-            status: str | None = None, user_id: int = LOCAL_USER) -> list[Job]:
+            status: str | None = None, user_id: int = LOCAL_USER, seen_after: datetime | None = None) -> list[Job]:
         uj = db.user_jobs
         j = db.jobs
         q = (sa.select(j, uj.c.status)
              .select_from(j.outerjoin(uj, sa.and_(uj.c.job_uid == j.c.uid, uj.c.user_id == user_id))))
         if sources:
             q = q.where(j.c.source.in_(sources))
+        if seen_after is not None:
+            q = q.where(j.c.last_seen >= seen_after)
         if status:
             q = q.where(uj.c.status == status)
         elif not include_hidden:

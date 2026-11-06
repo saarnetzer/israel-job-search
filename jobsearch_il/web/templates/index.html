@@ -74,6 +74,7 @@
     <select id="sort" aria-label="מיון"><option value="match" hidden>ההתאמה הגבוהה ביותר</option><option value="date">החדשות ביותר</option><option value="company">לפי חברה</option><option value="source">לפי אתר</option></select>
   </div>
 </div>
+<div id="loaderr"></div>
 <div class="count" id="count"></div>
 <details class="hiddenbox" id="hiddenbox" hidden><summary></summary><ul></ul></details>
 <div id="results"></div>
@@ -247,6 +248,7 @@ function params() {
 }
 const selectedSources = () => [...form.querySelectorAll('input[name=src]:checked')].map(x => x.value);
 
+let searchSeq = 0;
 form.addEventListener('submit', async ev => {
   ev.preventDefault();
   const p = params();
@@ -259,43 +261,68 @@ form.addEventListener('submit', async ev => {
   p.delete('mode');
   const srcs = selectedSources();
   if (!srcs.length) { alert('בחרו לפחות אתר אחד'); return; }
-  $('#go').disabled = true; newSet = new Set();
-  let since = null;
-  try { since = (await api('/api/search/since')).since; } catch (e) { $('#go').disabled = false; return; }
-  $('#progress').innerHTML = srcs.map(s => `<span class="pstat" id="p-${s}"><span class="spin"></span><bdi>${esc(NAMES[s])}</bdi></span>`).join('');
-  // scan each site in parallel so slow/blocked sites don't hold up the others
-  await Promise.all(srcs.map(async s => {
-    const q = new URLSearchParams(p); q.set('live', 'true'); q.set('source', s);
-    const el = $('#p-' + s);
-    try {
-      const d = await api('/api/search?' + q);
-      if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: שגיאה (העבירו עכבר לפרטים)</span>`; el.title = d.errors[s]; }
-      else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ <bdi>${esc(NAMES[s])}</bdi>: ${d.per_source[s] ?? 0} נסרקו, ${d.count} מתאימות</span>`; }
-    } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi></span>`; el.title = String(e); }
-  }));
-  // merged + deduped view straight from the local database
-  const q = new URLSearchParams(p); srcs.forEach(s => q.append('source', s));
-  if (cvMode) { q.delete('q'); q.set('cv', 'true'); }
-  $('#sort').querySelector('[value=match]').hidden = !cvMode;
-  $('#sort').value = cvMode ? 'match' : 'date';
-  q.set('since', since || '');
-  lastParams = new URLSearchParams(q);
-  q.set('mark', 'true');  // remember when this search finished, for next time's "new" badges
-  await load(q, 'results');
-  $('#go').disabled = false;
+  const seq = ++searchSeq;
+  $('#go').disabled = true; newSet = new Set(); showError('');
+  try {
+    // server clock: the results step only looks at jobs this scan found, not the whole database
+    const t = await api('/api/search/since');
+    const q = new URLSearchParams(p); srcs.forEach(s => q.append('source', s));
+    if (cvMode) { q.delete('q'); q.set('cv', 'true'); }
+    $('#sort').querySelector('[value=match]').hidden = !cvMode;
+    $('#sort').value = cvMode ? 'match' : 'date';
+    q.set('since', t.since || ''); q.set('seen_after', t.now);
+    lastParams = new URLSearchParams(q);
+    jobs = []; hiddenJobs = []; render();
+    $('#progress').innerHTML = srcs.map(s => `<span class="pstat" id="p-${s}"><span class="spin"></span><bdi>${esc(NAMES[s])}</bdi></span>`).join('');
+    // show results as soon as each site finishes; at most one refresh in flight
+    let refreshing = null, again = false;
+    const refresh = () => {
+      if (refreshing) { again = true; return refreshing; }
+      refreshing = (async () => {
+        do { again = false; if (seq === searchSeq && tab === 'results') await load(new URLSearchParams(lastParams), 'results'); } while (again);
+      })().catch(() => {}).finally(() => { refreshing = null; });
+      return refreshing;
+    };
+    // scan each site in parallel so slow/blocked sites don't hold up the others
+    await Promise.all(srcs.map(async s => {
+      const lq = new URLSearchParams(p); lq.set('live', 'true'); lq.set('source', s);
+      const el = $('#p-' + s);
+      try {
+        const d = await api('/api/search?' + lq);
+        if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: שגיאה (העבירו עכבר לפרטים)</span>`; el.title = d.errors[s]; }
+        else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ <bdi>${esc(NAMES[s])}</bdi>: ${d.per_source[s] ?? 0} נסרקו, ${d.count} מתאימות</span>`; }
+      } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: לא הגיב</span>`; el.title = String(e); }
+      if (seq === searchSeq) refresh();
+    }));
+    if (seq !== searchSeq) return;
+    if (refreshing) await refreshing;
+    const fq = new URLSearchParams(lastParams);
+    fq.set('mark', 'true');  // remember when this search finished, for next time's "new" badges
+    await load(fq, 'results');
+  } catch (e) {
+    if (seq === searchSeq) showError('לא הצלחנו לטעון את התוצאות. נסו שוב בעוד רגע.' + (jobs.length ? ' (מוצגות התוצאות שנטענו עד עכשיו)' : ''));
+  } finally {
+    if (seq === searchSeq) { $('#go').disabled = false; saveState(); }
+  }
 });
+
+function showError(text) {
+  $('#loaderr').innerHTML = text ? `<div class="msg err">${esc(text)}</div>` : '';
+}
 
 async function load(q, which) {
   tab = which;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === which));
   const d = await api('/api/search?' + q);
+  if (tab !== which) return;  // the user switched tabs meanwhile
   jobs = d.jobs; hiddenJobs = which === 'results' ? (d.hidden || []) : []; if (which === 'results') { newSet = new Set(jobs.filter(j => j.is_new).map(j => j.uid)); }
   $('#toolbar').hidden = false; render();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   const t = b.dataset.tab;
-  if (t === 'results') { if (lastParams) load(new URLSearchParams(lastParams), t); else { jobs = []; tab = t; render(); } }
-  else load(new URLSearchParams({status: t}), t);
+  const done = p => p && p.catch(() => showError('לא הצלחנו לטעון. נסו שוב.'));
+  if (t === 'results') { if (lastParams) done(load(new URLSearchParams(lastParams), t)); else { jobs = []; tab = t; render(); } }
+  else done(load(new URLSearchParams({status: t}), t));
 });
 $('#quick').oninput = render; $('#sort').onchange = render;
 
@@ -312,22 +339,23 @@ function render() {
     const nEx = hiddenJobs.filter(h => h.why === 'exclude').length, nTi = hiddenJobs.length - nEx;
     hb.querySelector('summary').textContent = `הוסתרו ${hiddenJobs.length} משרות` +
       [nEx ? `${nEx} לפי "לא להציג"` : '', nTi ? `${nTi} בתפקיד שלא מופיע בקורות החיים` : ''].filter(Boolean).map(x => ` · ${x}`).join('');
-    hb.querySelector('ul').innerHTML = hiddenJobs.map(h => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a>
+    hb.querySelector('ul').innerHTML = hiddenJobs.map(h => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener" data-job>${esc(h.title)}</a>
       ${h.company ? `· ${esc(h.company)}` : ''} <span class="why">(${h.why === 'exclude' ? 'מכיל' : 'דורש'}: ${esc(h.term)})</span></li>`).join('');
   }
   if (!list.length) { $('#results').innerHTML = `<div class="empty">${tab === 'results' ? 'לא נמצאו משרות. נסו מילים אחרות או הרחיבו את האזור.' : 'אין עדיין משרות ברשימה הזו.'}</div>`; return; }
   $('#results').innerHTML = list.map(card).join('');
+  saveState();
 }
 
 function card(j) {
   const date = j.posted_at ? new Date(j.posted_at).toLocaleDateString('he-IL') : '';
   const st = j.extra?.status;
-  const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener">גם ב־${esc(NAMES[o.source] || o.source)}</a>`).join('');
+  const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener" data-job>גם ב־${esc(NAMES[o.source] || o.source)}</a>`).join('');
   const m = j.match;
   const matchBadge = m ? `<span class="match ${m.score < 60 ? 'mid' : ''}">התאמה ${m.score}%</span>` : '';
   const matchedLine = m && m.matched.length ? `<div class="matched">תואם לקורות החיים: ${m.matched.map(x => esc(roleLabel(x))).join(', ')}</div>` : '';
   return `<article class="job" id="j-${j.uid}">
-    <h3>${matchBadge} <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+    <h3>${matchBadge} <a href="${esc(j.url)}" target="_blank" rel="noopener" data-job>${esc(j.title)}</a>
       ${newSet.has(j.uid) ? '<span class="badge new">חדש</span>' : ''}</h3>
     <div class="meta">
       ${j.company ? `<span>🏢 ${esc(j.company)}</span>` : ''}
@@ -352,6 +380,47 @@ async function mark(uid, status, btn) {
   if (status === 'hidden') { jobs = jobs.filter(x => x.uid !== uid); }
   render();
 }
+
+// ---------------------------------------------------------------- keep results when coming back to the page
+const STATE_KEY = 'jsil-results';
+function saveState() {
+  try {
+    sessionStorage.setItem(STATE_KEY, JSON.stringify({
+      jobs: jobs.map(j => ({...j, description: (j.description || '').slice(0, 1500)})),
+      hiddenJobs, newSet: [...newSet], tab, lastParams: lastParams ? lastParams.toString() : null,
+      progress: $('#progress').innerHTML, form: formValues(), sort: $('#sort').value,
+      matchSort: !$('#sort').querySelector('[value=match]').hidden, quick: $('#quick').value, scrollY: window.scrollY,
+    }));
+  } catch (e) {}
+}
+function restoreState() {
+  let st = null;
+  try { st = JSON.parse(sessionStorage.getItem(STATE_KEY) || 'null'); } catch (e) {}
+  if (!st || !st.lastParams) return;
+  fill(st.form);
+  jobs = st.jobs || []; hiddenJobs = st.hiddenJobs || []; newSet = new Set(st.newSet || []);
+  tab = st.tab || 'results'; lastParams = new URLSearchParams(st.lastParams);
+  $('#progress').innerHTML = st.progress || '';
+  $('#sort').querySelector('[value=match]').hidden = !st.matchSort;
+  $('#sort').value = st.sort || 'date'; $('#quick').value = st.quick || '';
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#toolbar').hidden = false; render();
+  requestAnimationFrame(() => window.scrollTo(0, st.scrollY || 0));
+}
+restoreState();
+let scrollTimer = null;
+window.addEventListener('scroll', () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(saveState, 300); }, {passive: true});
+window.addEventListener('pagehide', saveState);
+
+// job links always open in a new tab, even in browsers/in-app views that ignore target=_blank
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-job]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  saveState();
+  const w = window.open(a.href, '_blank');
+  if (w) { try { w.opener = null; } catch (_) {} } else { location.href = a.href; }  // popup blocked: results are saved
+});
 </script>
 </body>
 </html>

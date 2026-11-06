@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from datetime import datetime, timedelta
 
 NIQQUD = re.compile(r"[֑-ׇ]")
@@ -39,12 +40,14 @@ SYNONYMS: list[set[str]] = [
 ]
 
 
+@lru_cache(maxsize=4096)
 def normalize(text: str) -> str:
     text = NIQQUD.sub("", text or "")
     text = text.replace("״", '"').replace("׳", "'").replace("־", "-")
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+@lru_cache(maxsize=4096)
 def expand_synonyms(term: str) -> list[str]:
     t = normalize(term)
     for group in SYNONYMS:
@@ -53,6 +56,7 @@ def expand_synonyms(term: str) -> list[str]:
     return [t]
 
 
+@lru_cache(maxsize=8192)
 def _term_pattern(term: str) -> re.Pattern[str]:
     t = re.escape(normalize(term)).replace(r"\ ", r"[\s\-]*")
     if re.search(r"[֐-׿]", term):

@@ -170,3 +170,14 @@ def test_password_hashing():
     assert auth.verify_password("correct horse", h)
     assert not auth.verify_password("wrong", h)
     assert not auth.verify_password("x", "garbage")
+
+
+def test_since_endpoint_gives_server_clock_for_scoping(db_url):
+    c = make_client(db_url)
+    register(c)
+    t = c.get("/api/search/since").json()
+    assert t["since"] is None and t["now"]
+    c.get("/api/search", params={"live": True, "q": "developer"})
+    assert c.get("/api/search", params={"seen_after": t["now"]}).json()["count"] == 2
+    assert c.get("/api/search", params={"seen_after": "2999-01-01T00:00:00"}).json()["count"] == 0
+    assert c.get("/api/search", params={"seen_after": "nope"}).status_code == 400

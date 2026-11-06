@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -24,6 +24,8 @@ from ..storage import STATUSES, JobStore
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 COOKIE = "jsil_session"
+LIVE_BUDGET_S = 45
+"""Seconds each site gets per search; slower sites return what they found so far."""
 
 # fields a user may keep as default search settings
 DEFAULT_FIELDS = {"q", "location", "job_type", "days", "max_exp", "min_salary", "exclude", "exclude_company",
@@ -290,14 +292,17 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
     def search_since(user: dict = Depends(api_user)):
         """When this user's previous search finished: jobs first seen after it get a "new" badge."""
         prev = user["last_search_at"]
-        return {"since": prev.isoformat(timespec="seconds") if prev else None}
+        # "now" is the server's clock: the results step only looks at jobs this scan touched after it
+        return {"since": prev.isoformat(timespec="seconds") if prev else None,
+                "now": (datetime.now() - timedelta(seconds=2)).isoformat(timespec="seconds")}
 
     @app.get("/api/search")
     def api_search(c: SearchCriteria = Depends(criteria_params), live: bool = False, status: str | None = None,
                    since: str | None = None, mark: bool = False, cv: bool = False,
+                   seen_after: str | None = None,
                    min_match: int = Query(25, ge=0, le=100), user: dict = Depends(api_user)):
         if live:
-            res = engine.search(c)
+            res = engine.search(c, budget_s=LIVE_BUDGET_S)
             return {"count": len(res.jobs), "scraped": res.scraped, "per_source": res.per_source,
                     "errors": res.errors}
         if status and status not in STATUSES:
@@ -318,7 +323,13 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             ctx = title_context(saved["text"], profile, learned=confirmed) if profile.hide_other_titles else None
             limit, c.limit = c.limit, None
             c.keywords = []  # the CV decides relevance, in title and description
-        jobs = engine.search_stored(c, status=status, user_id=user["id"])
+        scope = None
+        if seen_after:
+            try:
+                scope = datetime.fromisoformat(seen_after)
+            except ValueError:
+                raise HTTPException(400, "bad seen_after")
+        jobs = engine.search_stored(c, status=status, user_id=user["id"], seen_after=scope)
         matches: dict[str, dict[str, Any]] = {}
         n_excluded = 0
         hidden: list[dict[str, Any]] = []
