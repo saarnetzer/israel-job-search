@@ -9,3 +9,7 @@ config.yaml
 results.*
 build/
 dist/
+
+# local agent tooling (Neon agent skills installed in this environment)
+.claude/
+skills-lock.json
