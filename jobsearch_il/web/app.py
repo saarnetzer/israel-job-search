@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Re
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..auth import AuthError, RateLimiter, UserStore
 from ..cv import (LEARN_MIN_USERS, CVError, CVProfile, excluded_by, extract_profile, extract_text, is_known_role,
@@ -20,6 +22,7 @@ from ..engine import JobSearchEngine
 from ..locations import REGIONS
 from ..models import SearchCriteria
 from ..storage import STATUSES, JobStore
+from . import i18n
 
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
@@ -33,7 +36,7 @@ DEFAULT_FIELDS = {"q", "location", "job_type", "days", "max_exp", "min_salary", 
 
 
 def _split(v: str | None) -> list[str]:
-    return [x.strip() for x in (v or "").split(",") if x.strip()]
+    return [x.strip() for x in re.split(r"[,،]", v or "") if x.strip()]  # also the Arabic comma
 
 
 def criteria_params(
@@ -84,6 +87,27 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
     async def _login_redirect(request: Request, exc: LoginRequired):
         return RedirectResponse("/login", status_code=303)
 
+    @app.exception_handler(StarletteHTTPException)
+    async def _localized_error(request: Request, exc: StarletteHTTPException):
+        """API errors are raised in Hebrew; answer in the user's language."""
+        detail = i18n.localize(exc.detail, i18n.get_lang(request)) if isinstance(exc.detail, str) else exc.detail
+        return JSONResponse({"detail": detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
+
+    def page(request: Request, name: str, ctx: dict[str, Any], status: int = 200):
+        """Render a template in the user's language (Hebrew or Arabic)."""
+        lang = i18n.get_lang(request)
+        ctx = {**ctx, "lang": lang, "L": i18n.LANGS[lang], "langs": i18n.LANGS, "path": request.url.path,
+               "t": lambda key, **kw: i18n.t(key, lang, **kw)}
+        if "boot" in ctx:
+            ctx["boot"] = json.dumps({**ctx["boot"], "T": i18n.strings_for(lang), "lang": lang,
+                                      "locale": i18n.LANGS[lang]["locale"],
+                                      "region_labels": i18n.region_labels(lang, list(REGIONS))},
+                                     ensure_ascii=False)
+        resp = TEMPLATES.TemplateResponse(request, name, ctx, status_code=status)
+        if request.query_params.get("lang") in i18n.LANGS:  # ?lang=ar in a link: remember it
+            resp.set_cookie(i18n.COOKIE, lang, max_age=365 * 86400, samesite="lax", path="/")
+        return resp
+
     def page_user(request: Request) -> dict[str, Any]:
         uid = users.user_for_session(request.cookies.get(COOKIE))
         user = users.get(uid) if uid else None
@@ -121,14 +145,24 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
 
     def auth_page(request: Request, mode: str, error: str = "", email: str = "", status: int = 200):
-        return TEMPLATES.TemplateResponse(request, "auth.html", {
-            "mode": mode, "error": error, "email": email, "need_invite": bool(invite_code),
-            "registration_open": registration_open}, status_code=status)
+        return page(request, "auth.html", {
+            "mode": mode, "error": i18n.localize(error, i18n.get_lang(request)), "email": email,
+            "need_invite": bool(invite_code), "registration_open": registration_open}, status=status)
 
     # ------------------------------------------------------------------ auth pages
     @app.get("/healthz")
     def healthz():
         return {"ok": True}
+
+    @app.get("/lang/{code}")
+    def set_language(code: str, next: str = "/"):
+        """Language switch: remember the choice in a cookie and go back to the page."""
+        if code not in i18n.LANGS:
+            raise HTTPException(404, "unknown language")
+        safe_next = next if next.startswith("/") and not next.startswith("//") and "\\" not in next else "/"
+        resp = RedirectResponse(safe_next, status_code=303)
+        resp.set_cookie(i18n.COOKIE, code, max_age=365 * 86400, samesite="lax", path="/")
+        return resp
 
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request):
@@ -186,15 +220,13 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         boot = {"sources": sources_info(), "regions": list(REGIONS), "stats": engine.store.stats(),
                 "user": {"email": user["email"], "settings": user["settings"]},
                 "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
-        return TEMPLATES.TemplateResponse(request, "index.html", {"boot": json.dumps(boot, ensure_ascii=False),
-                                                                  "user": user})
+        return page(request, "index.html", {"boot": boot, "user": user})
 
     @app.get("/settings", response_class=HTMLResponse)
     def settings_page(request: Request, user: dict = Depends(page_user)):
         boot = {"sources": sources_info(), "regions": list(REGIONS), "settings": user["settings"],
                 "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
-        return TEMPLATES.TemplateResponse(request, "settings.html", {"boot": json.dumps(boot, ensure_ascii=False),
-                                                                     "user": user})
+        return page(request, "settings.html", {"boot": boot, "user": user})
 
     # ------------------------------------------------------------------ API
     @app.get("/api/me")

@@ -1,84 +1,79 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="{{ lang }}" dir="{{ L.dir }}">
 <head>
-<title>חיפוש עבודה בישראל</title>
+<title>{{ t('app_title') }}</title>
 {% include "_head.html" %}
 </head>
 <body>
 <div class="wrap">
 {% include "_topbar.html" %}
 <div class="sub" id="sub"></div>
+{% if t('content_note') %}<p class="note">{{ t('content_note') }}</p>{% endif %}
 
 <form class="panel" id="form" autocomplete="off">
   <input type="hidden" name="mode" value="words">
   <div class="modes" role="tablist">
-    <button type="button" data-mode="words" class="on">🔎 חיפוש לפי מילים</button>
-    <button type="button" data-mode="cv">📄 לפי קורות חיים</button>
+    <button type="button" data-mode="words" class="on">{{ t('mode_words') }}</button>
+    <button type="button" data-mode="cv">{{ t('mode_cv') }}</button>
   </div>
   <div class="cvbox" id="cvbox" hidden></div>
   <div class="searchrow">
-    <input type="text" name="q" placeholder="מה מחפשים? למשל: python, מנהלת חשבונות, נהג" aria-label="מילות חיפוש">
-    <input type="text" name="location" placeholder="איפה? עיר או אזור (ריק = כל הארץ)" list="regions" aria-label="מיקום">
-    <button class="primary" type="submit" id="go">חיפוש</button>
+    <input type="text" name="q" placeholder="{{ t('q_placeholder') }}" aria-label="{{ t('q_aria') }}">
+    <input type="text" name="location" placeholder="{{ t('loc_placeholder') }}" list="regions" aria-label="{{ t('loc_aria') }}">
+    <button class="primary" type="submit" id="go">{{ t('search_btn') }}</button>
   </div>
   <datalist id="regions"></datalist>
   <div class="chips" id="regionChips"></div>
 
   <details id="advBox">
-    <summary>סינון מתקדם</summary>
+    <summary>{{ t('advanced') }}</summary>
     <div class="adv">
-      <label>היקף משרה
-        <select name="job_type">
-          <option value="">הכל</option><option value="משרה מלאה">מלאה</option><option value="משרה חלקית">חלקית</option>
-          <option value="סטודנט">סטודנטים</option><option value="משמרות">משמרות</option><option value="פרילנס">פרילנס</option>
-          <option value="התמחות">התמחות</option>
-        </select></label>
-      <label>פורסם ב־
-        <select name="days"><option value="">כל זמן</option><option value="1">יום אחרון</option><option value="3">3 ימים</option>
-          <option value="7">שבוע</option><option value="14">שבועיים</option><option value="30">חודש</option></select></label>
-      <label>מקסימום שנות ניסיון
-        <select name="max_exp"><option value="">לא משנה</option><option value="0">ללא ניסיון</option><option value="1">עד שנה</option>
-          <option value="2">עד 2</option><option value="3">עד 3</option><option value="5">עד 5</option></select></label>
-      <label>שכר מינימלי (₪ לחודש)
-        <input type="number" name="min_salary" min="0" step="500" placeholder="רק כשהשכר מפורסם"></label>
-      <label>מילים לפסילה
-        <input type="text" name="exclude" placeholder="senior, ראש צוות"></label>
-      <label>חברות לפסילה
-        <input type="text" name="exclude_company" placeholder="למשל חברות השמה"></label>
-      <label>עמודים בכל אתר
+      <label>{{ t('job_type') }}
+        {% include "_jobtype_select.html" %}</label>
+      <label>{{ t('posted') }}
+        {% include "_days_select.html" %}</label>
+      <label>{{ t('max_exp') }}
+        {% include "_exp_select.html" %}</label>
+      <label>{{ t('min_salary') }}
+        <input type="number" name="min_salary" min="0" step="500" placeholder="{{ t('min_salary_ph') }}"></label>
+      <label>{{ t('exclude_words') }}
+        <input type="text" name="exclude" placeholder="{{ t('exclude_words_ph') }}"></label>
+      <label>{{ t('exclude_companies') }}
+        <input type="text" name="exclude_company" placeholder="{{ t('exclude_companies_ph') }}"></label>
+      <label>{{ t('pages') }}
         <select name="pages"><option>1</option><option selected>2</option><option>3</option><option>5</option></select></label>
     </div>
     <div class="checks">
-      <label><input type="checkbox" name="remote"> רק מהבית / היברידי</label>
-      <label><input type="checkbox" name="match_all"> כל המילים חייבות להופיע</label>
-      <label><input type="checkbox" name="title_only"> חיפוש בכותרת בלבד</label>
+      <label><input type="checkbox" name="remote"> {{ t('remote') }}</label>
+      <label><input type="checkbox" name="match_all"> {{ t('match_all') }}</label>
+      <label><input type="checkbox" name="title_only"> {{ t('title_only') }}</label>
     </div>
     <div class="checks" id="sourceChecks"></div>
   </details>
   <div class="savedrow">
-    <span class="muted">חיפושים שמורים:</span>
-    <select id="savedSel" aria-label="חיפושים שמורים"></select>
-    <button type="button" class="ghost" id="saveSearch">💾 שמירת החיפוש</button>
+    <span class="muted">{{ t('saved_searches') }}</span>
+    <select id="savedSel" aria-label="{{ t('saved_searches_title') }}"></select>
+    <button type="button" class="ghost" id="saveSearch">{{ t('save_search') }}</button>
   </div>
   <div class="progress" id="progress"></div>
 </form>
 
 <div class="toolbar" id="toolbar" hidden>
   <div class="tabs" role="tablist">
-    <button data-tab="results" class="on">תוצאות</button>
-    <button data-tab="saved">⭐ שמורות</button>
-    <button data-tab="applied">✅ הגשתי</button>
+    <button data-tab="results" class="on">{{ t('tab_results') }}</button>
+    <button data-tab="saved">{{ t('tab_saved') }}</button>
+    <button data-tab="applied">{{ t('tab_applied') }}</button>
   </div>
   <div class="tools">
-    <input type="text" id="quick" placeholder="סינון מהיר…" aria-label="סינון מהיר">
-    <select id="sort" aria-label="מיון"><option value="match" hidden>ההתאמה הגבוהה ביותר</option><option value="date">החדשות ביותר</option><option value="company">לפי חברה</option><option value="source">לפי אתר</option></select>
+    <input type="text" id="quick" placeholder="{{ t('quick_ph') }}" aria-label="{{ t('quick_ph') }}">
+    <select id="sort" aria-label="{{ t('sort_aria') }}"><option value="match" hidden>{{ t('sort_match') }}</option><option value="date">{{ t('sort_date') }}</option><option value="company">{{ t('sort_company') }}</option><option value="source">{{ t('sort_source') }}</option></select>
   </div>
 </div>
 <div id="loaderr"></div>
 <div class="count" id="count"></div>
 <details class="hiddenbox" id="hiddenbox" hidden><summary></summary><ul></ul></details>
 <div id="results"></div>
-<footer>התוצאות נאספות מאתרי הדרושים ומקושרות למודעה המקורית. משרה שמופיעה בכמה אתרים מוצגת פעם אחת.</footer>
+<footer>{{ t('footer') }}</footer>
 </div>
 
 <script>
@@ -89,29 +84,32 @@ const NAMES = Object.fromEntries(BOOT.sources.map(s => [s.name, s.display_name])
 const ACTIVE = BOOT.sources.filter(s => s.active);
 let jobs = [], newSet = new Set(), tab = 'results', lastParams = null, hiddenJobs = [];
 
+const T = (k, v = {}) => String(BOOT.T[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? '');
+const LOCALE = BOOT.locale;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const total = Object.values(BOOT.stats).reduce((a, b) => a + b, 0);
-$('#sub').innerHTML = `חיפוש אחד ב־${ACTIVE.map(s => '<bdi>' + esc(s.display_name) + '</bdi>').join(', ')}` + (total ? ` · ${total.toLocaleString('he-IL')} משרות במאגר` : '');
+$('#sub').innerHTML = T('sub_sites', {sites: ACTIVE.map(s => '<bdi>' + esc(s.display_name) + '</bdi>').join(T('list_sep'))}) + (total ? esc(T('sub_total', {n: total.toLocaleString(LOCALE)})) : '');
 
-BOOT.regions.forEach(r => { $('#regions').insertAdjacentHTML('beforeend', `<option value="${esc(r)}">`); });
+BOOT.regions.forEach(r => { $('#regions').insertAdjacentHTML('beforeend', `<option value="${esc(BOOT.region_labels[r] || r)}">`); });
 ['מרכז','שרון','צפון','דרום','ירושלים והסביבה','שפלה','remote'].forEach(r => {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'chip';
-  b.textContent = r === 'remote' ? '🏠 מהבית' : r;
+  const v = r === 'remote' ? 'remote' : (BOOT.region_labels[r] || r);  // the label is also a name the search understands
+  b.textContent = r === 'remote' ? T('remote_chip') : v;
   b.onclick = () => {
-    const inp = form.location, parts = inp.value.split(',').map(x => x.trim()).filter(Boolean);
-    const i = parts.indexOf(r); i >= 0 ? parts.splice(i, 1) : parts.push(r);
+    const inp = form.location, parts = inp.value.split(/[,،]/).map(x => x.trim()).filter(Boolean);
+    const i = parts.indexOf(v); i >= 0 ? parts.splice(i, 1) : parts.push(v);
     inp.value = parts.join(', '); syncChips();
   };
-  b.dataset.val = r; $('#regionChips').append(b);
+  b.dataset.val = v; $('#regionChips').append(b);
 });
 function syncChips() {
-  const parts = form.location.value.split(',').map(x => x.trim());
+  const parts = form.location.value.split(/[,،]/).map(x => x.trim());
   document.querySelectorAll('#regionChips .chip').forEach(c => c.classList.toggle('on', parts.includes(c.dataset.val)));
 }
 form.location.addEventListener('input', syncChips);
 
-$('#sourceChecks').innerHTML = '<span style="color:var(--muted)">אתרים:</span>' + BOOT.sources.map(s =>
-  `<label title="${s.active ? '' : 'דורש הגדרה ב-config.yaml'}"><input type="checkbox" name="src" value="${s.name}" ${s.active ? 'checked' : 'disabled'}> ${esc(s.display_name)}</label>`).join('');
+$('#sourceChecks').innerHTML = `<span style="color:var(--muted)">${esc(T('sites_label'))}</span>` + BOOT.sources.map(s =>
+  `<label title="${s.active ? '' : esc(T('needs_config'))}"><input type="checkbox" name="src" value="${s.name}" ${s.active ? 'checked' : 'disabled'}> ${esc(s.display_name)}</label>`).join('');
 
 // ---------------------------------------------------------------- CV mode
 let CV = BOOT.cv;
@@ -133,33 +131,33 @@ function renderCV() {
   if (!CV) {
     cvbox.innerHTML = `<div class="upload">
       <div style="font-size:28px">📄</div>
-      <div><b>העלו קורות חיים</b> ונמצא משרות שמתאימות לכם, לפי התאמה בכותרת המשרה ובפירוט שלה</div>
-      <label class="primary" style="padding:9px 16px;border-radius:10px;color:#fff">בחירת קובץ<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label>
-      <div style="font-size:12px">PDF, Word (‎.docx‎) או טקסט, עד 5MB · נשמר רק הטקסט, לא הקובץ</div>
+      <div><b>${esc(T('cv_upload_title'))}</b> ${esc(T('cv_upload_desc'))}</div>
+      <label class="primary" style="padding:9px 16px;border-radius:10px;color:#fff">${esc(T('choose_file'))}<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label>
+      <div style="font-size:12px">${esc(T('cv_formats'))}</div>
       <div id="cvmsg"></div></div>`;
   } else {
     const p = CV.profile;
     p.include = p.include || []; p.exclude = p.exclude || [];
     const cls = {roles: 'role', skills: '', include: 'inc', exclude: 'exc'};
-    const tag = (kind, v, label) => `<span class="tag ${cls[kind]}">${esc(label || v)}<button type="button" aria-label="הסרה" data-kind="${kind}" data-v="${esc(v)}">×</button></span>`;
+    const tag = (kind, v, label) => `<span class="tag ${cls[kind]}">${esc(label || v)}<button type="button" aria-label="${esc(T('remove'))}" data-kind="${kind}" data-v="${esc(v)}">×</button></span>`;
     cvbox.innerHTML = `<div class="cvhead">
-        <span>📄 <b>${esc(CV.filename)}</b> <span class="muted">· ${new Date(CV.uploaded_at).toLocaleDateString('he-IL')}${p.years ? ` · כ-${p.years} שנות ניסיון` : ''}</span></span>
-        <span class="actions"><label>החלפה<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label><button type="button" id="cvdel">מחיקה</button></span>
+        <span>📄 <b><bdi>${esc(CV.filename)}</bdi></b> <span class="muted">· <bdi>${new Date(CV.uploaded_at).toLocaleDateString(LOCALE)}</bdi>${p.years ? ` · ${esc(T('cv_years', {n: p.years}))}` : ''}</span></span>
+        <span class="actions"><label>${esc(T('replace'))}<input type="file" id="cvfile" accept=".pdf,.docx,.txt" hidden></label><button type="button" id="cvdel">${esc(T('delete'))}</button></span>
       </div>
-      <div class="taglabel">תפקידים שזוהו (חשובים יותר, בעיקר בכותרת המשרה)</div>
-      <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="+ הוספת תפקיד" data-add="roles" title="תפקיד שתוסיפו נלמד ויזוהה גם בקורות חיים של משתמשים אחרים"></div>
-      <div class="muted" style="font-size:12px;margin-top:4px">חסר תפקיד? הוסיפו אותו. הוא יילמד ויעזור לזהות אותו גם אצל אחרים.</div>
-      <div class="taglabel">כישורים שזוהו</div>
-      <div class="tags">${p.skills.map(x => tag('skills', x)).join('')}<input type="text" placeholder="+ הוספת כישור" data-add="skills"></div>
+      <div class="taglabel">${esc(T('roles_label'))}</div>
+      <div class="tags">${p.roles.map(r => tag('roles', r, roleLabel(r))).join('')}<input type="text" placeholder="${esc(T('add_role_ph'))}" data-add="roles" title="${esc(T('add_role_title'))}"></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(T('add_role_hint'))}</div>
+      <div class="taglabel">${esc(T('skills_label'))}</div>
+      <div class="tags">${p.skills.map(x => tag('skills', x)).join('')}<input type="text" placeholder="${esc(T('add_skill_ph'))}" data-add="skills"></div>
       <div class="filterrows">
-        <div><div class="taglabel">➕ לחפש גם</div>
-          <div class="tags">${p.include.map(x => tag('include', x)).join('')}<input type="text" placeholder="+ למשל: ניסיון עם כספים" data-add="include" style="width:190px"></div></div>
-        <div><div class="taglabel">🚫 לא להציג משרות עם</div>
-          <div class="tags">${p.exclude.map(x => tag('exclude', x)).join('')}<input type="text" placeholder="+ למשל: חשבת שכר" data-add="exclude" style="width:170px"></div></div>
+        <div><div class="taglabel">${esc(T('include_label'))}</div>
+          <div class="tags">${p.include.map(x => tag('include', x)).join('')}<input type="text" placeholder="${esc(T('include_ph'))}" data-add="include" style="width:190px"></div></div>
+        <div><div class="taglabel">${esc(T('exclude_label'))}</div>
+          <div class="tags">${p.exclude.map(x => tag('exclude', x)).join('')}<input type="text" placeholder="${esc(T('exclude_ph'))}" data-add="exclude" style="width:170px"></div></div>
       </div>
       <label class="cvopt"><input type="checkbox" id="hideOther" ${p.hide_other_titles !== false ? 'checked' : ''}>
-        להסתיר משרות בתפקיד או בתואר שלא מופיעים בקורות החיים (למשל עורך דין, כשבקורות החיים יש רק ידע במשפטים)</label>
-      <div class="muted" style="font-size:12px;margin-top:10px">החיפוש באתרים: ${CV.queries.map(esc).join(' · ') || '—'}</div>
+        ${esc(T('hide_other'))}</label>
+      <div class="muted" style="font-size:12px;margin-top:10px">${esc(T('site_queries', {q: CV.queries.join(' · ') || '—'}))}</div>
       <div id="cvmsg"></div>`;
     cvbox.querySelectorAll('.tag button').forEach(b => b.onclick = () => {
       const k = b.dataset.kind; saveProfile({...p, [k]: p[k].filter(x => x !== b.dataset.v)});
@@ -179,7 +177,7 @@ async function saveProfile(p) {
   catch (e) { $('#cvmsg').innerHTML = `<div class="msg err">${esc(e.message)}</div>`; }
 }
 async function uploadCV(file) {
-  $('#cvmsg').innerHTML = '<div class="muted" style="margin-top:8px">קורא את הקובץ…</div>';
+  $('#cvmsg').innerHTML = `<div class="muted" style="margin-top:8px">${esc(T('reading_file'))}</div>`;
   const fd = new FormData(); fd.append('file', file);
   try {
     const r = await fetch('/api/cv', {method: 'POST', body: fd});
@@ -224,13 +222,13 @@ function formValues() {
 
 let searches = BOOT.searches;
 function renderSaved() {
-  $('#savedSel').innerHTML = '<option value="">' + (searches.length ? 'בחרו…' : 'אין עדיין') + '</option>' +
+  $('#savedSel').innerHTML = `<option value="">${esc(searches.length ? T('choose') : T('none_yet'))}</option>` +
     searches.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
 }
 renderSaved();
 $('#savedSel').onchange = () => { const s = searches.find(x => String(x.id) === $('#savedSel').value); if (s) { fill(s.params); form.requestSubmit(); } };
 $('#saveSearch').onclick = async () => {
-  const name = prompt('שם לחיפוש (למשל: פייתון במרכז)'); if (!name) return;
+  const name = prompt(T('save_search_prompt')); if (!name) return;
   try { const d = await api('/api/searches', {method: 'POST', body: JSON.stringify({name, params: formValues()})});
         searches = d.searches; renderSaved(); $('#savedSel').value = d.id; }
   catch (e) { alert(e.message); }
@@ -254,13 +252,13 @@ form.addEventListener('submit', async ev => {
   const p = params();
   const cvMode = form.mode.value === 'cv';
   if (cvMode) {
-    if (!CV) { renderCV(); $('#cvmsg').innerHTML = '<div class="msg err" style="margin-top:8px">קודם מעלים קורות חיים</div>'; return; }
-    if (!CV.queries.length) { alert('לא זוהו תפקידים או כישורים. הוסיפו לפחות אחד.'); return; }
+    if (!CV) { renderCV(); $('#cvmsg').innerHTML = `<div class="msg err" style="margin-top:8px">${esc(T('cv_first'))}</div>`; return; }
+    if (!CV.queries.length) { alert(T('cv_no_terms')); return; }
     p.set('q', CV.queries.join(', '));
   }
   p.delete('mode');
   const srcs = selectedSources();
-  if (!srcs.length) { alert('בחרו לפחות אתר אחד'); return; }
+  if (!srcs.length) { alert(T('pick_site')); return; }
   const seq = ++searchSeq;
   $('#go').disabled = true; newSet = new Set(); showError('');
   try {
@@ -289,9 +287,9 @@ form.addEventListener('submit', async ev => {
       const el = $('#p-' + s);
       try {
         const d = await api('/api/search?' + lq);
-        if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: שגיאה (העבירו עכבר לפרטים)</span>`; el.title = d.errors[s]; }
-        else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ <bdi>${esc(NAMES[s])}</bdi>: ${d.per_source[s] ?? 0} נסרקו, ${d.count} מתאימות</span>`; }
-      } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ <bdi>${esc(NAMES[s])}</bdi>: לא הגיב</span>`; el.title = String(e); }
+        if (d.errors[s]) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ ${T('st_error', {site: `<bdi>${esc(NAMES[s])}</bdi>`})}</span>`; el.title = d.errors[s]; }
+        else { el.className = 'pstat ok'; el.innerHTML = `<span>✓ ${T('st_ok', {site: `<bdi>${esc(NAMES[s])}</bdi>`, n: d.per_source[s] ?? 0, m: d.count})}</span>`; }
+      } catch (e) { el.className = 'pstat err'; el.innerHTML = `<span>⚠ ${T('st_noresp', {site: `<bdi>${esc(NAMES[s])}</bdi>`})}</span>`; el.title = String(e); }
       if (seq === searchSeq) refresh();
     }));
     if (seq !== searchSeq) return;
@@ -300,7 +298,7 @@ form.addEventListener('submit', async ev => {
     fq.set('mark', 'true');  // remember when this search finished, for next time's "new" badges
     await load(fq, 'results');
   } catch (e) {
-    if (seq === searchSeq) showError('לא הצלחנו לטעון את התוצאות. נסו שוב בעוד רגע.' + (jobs.length ? ' (מוצגות התוצאות שנטענו עד עכשיו)' : ''));
+    if (seq === searchSeq) showError(T('load_fail') + (jobs.length ? T('load_partial') : ''));
   } finally {
     if (seq === searchSeq) { $('#go').disabled = false; saveState(); }
   }
@@ -320,7 +318,7 @@ async function load(q, which) {
 }
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   const t = b.dataset.tab;
-  const done = p => p && p.catch(() => showError('לא הצלחנו לטעון. נסו שוב.'));
+  const done = p => p && p.catch(() => showError(T('load_fail_short')));
   if (t === 'results') { if (lastParams) done(load(new URLSearchParams(lastParams), t)); else { jobs = []; tab = t; render(); } }
   else done(load(new URLSearchParams({status: t}), t));
 });
@@ -332,50 +330,50 @@ function render() {
   const key = { match: j => -((j.match || {}).score || 0), date: j => -(Date.parse(j.posted_at) || 0), company: j => j.company || 'תתת', source: j => j.source }[sort];
   list = [...list].sort((a, b) => { const x = key(a), y = key(b); return x < y ? -1 : x > y ? 1 : 0; });
   const nNew = list.filter(j => newSet.has(j.uid)).length;
-  $('#count').textContent = list.length ? `${list.length} משרות` + (nNew && tab === 'results' ? ` · ${nNew} חדשות מאז החיפוש הקודם שלך` : '') : '';
+  $('#count').textContent = list.length ? T('count_jobs', {n: list.length}) + (nNew && tab === 'results' ? T('count_new', {n: nNew}) : '') : '';
   const hb = $('#hiddenbox');
   hb.hidden = !hiddenJobs.length || tab !== 'results';
   if (hiddenJobs.length) {
     const nEx = hiddenJobs.filter(h => h.why === 'exclude').length, nTi = hiddenJobs.length - nEx;
-    hb.querySelector('summary').textContent = `הוסתרו ${hiddenJobs.length} משרות` +
-      [nEx ? `${nEx} לפי "לא להציג"` : '', nTi ? `${nTi} בתפקיד שלא מופיע בקורות החיים` : ''].filter(Boolean).map(x => ` · ${x}`).join('');
+    hb.querySelector('summary').textContent = T('hidden_summary', {n: hiddenJobs.length}) +
+      [nEx ? T('hidden_ex', {n: nEx}) : '', nTi ? T('hidden_title', {n: nTi}) : ''].filter(Boolean).map(x => ` · ${x}`).join('');
     hb.querySelector('ul').innerHTML = hiddenJobs.map(h => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener" data-job>${esc(h.title)}</a>
-      ${h.company ? `· ${esc(h.company)}` : ''} <span class="why">(${h.why === 'exclude' ? 'מכיל' : 'דורש'}: ${esc(h.term)})</span></li>`).join('');
+      ${h.company ? `· ${esc(h.company)}` : ''} <span class="why">(${esc(h.why === 'exclude' ? T('why_contains') : T('why_requires'))}: ${esc(h.term)})</span></li>`).join('');
   }
-  if (!list.length) { $('#results').innerHTML = `<div class="empty">${tab === 'results' ? 'לא נמצאו משרות. נסו מילים אחרות או הרחיבו את האזור.' : 'אין עדיין משרות ברשימה הזו.'}</div>`; return; }
+  if (!list.length) { $('#results').innerHTML = `<div class="empty">${esc(tab === 'results' ? T('empty_results') : T('empty_list'))}</div>`; return; }
   $('#results').innerHTML = list.map(card).join('');
   saveState();
 }
 
 function card(j) {
-  const date = j.posted_at ? new Date(j.posted_at).toLocaleDateString('he-IL') : '';
+  const date = j.posted_at ? new Date(j.posted_at).toLocaleDateString(LOCALE) : '';
   const st = j.extra?.status;
-  const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener" data-job>גם ב־${esc(NAMES[o.source] || o.source)}</a>`).join('');
+  const also = (j.extra?.also_on || []).map(o => `<a class="badge" href="${esc(o.url)}" target="_blank" rel="noopener" data-job>${esc(T('also_on', {site: NAMES[o.source] || o.source}))}</a>`).join('');
   const m = j.match;
-  const matchBadge = m ? `<span class="match ${m.score < 60 ? 'mid' : ''}">התאמה ${m.score}%</span>` : '';
-  const matchedLine = m && m.matched.length ? `<div class="matched">תואם לקורות החיים: ${m.matched.map(x => esc(roleLabel(x))).join(', ')}</div>` : '';
+  const matchBadge = m ? `<span class="match ${m.score < 60 ? 'mid' : ''}">${esc(T('match', {n: m.score}))}</span>` : '';
+  const matchedLine = m && m.matched.length ? `<div class="matched">${esc(T('matched', {list: m.matched.map(roleLabel).join(T('list_sep'))}))}</div>` : '';
   return `<article class="job" id="j-${j.uid}">
     <h3>${matchBadge} <a href="${esc(j.url)}" target="_blank" rel="noopener" data-job>${esc(j.title)}</a>
-      ${newSet.has(j.uid) ? '<span class="badge new">חדש</span>' : ''}</h3>
+      ${newSet.has(j.uid) ? `<span class="badge new">${esc(T('new_badge'))}</span>` : ''}</h3>
     <div class="meta">
       ${j.company ? `<span>🏢 ${esc(j.company)}</span>` : ''}
       ${j.location ? `<span>📍 ${esc(j.location)}</span>` : ''}
       ${j.job_type ? `<span>⏱ ${esc(j.job_type)}</span>` : ''}
       ${j.salary ? `<span>₪ ${esc(j.salary)}</span>` : ''}
-      ${date ? `<span>📅 ${date}</span>` : ''}
+      ${date ? `<span>📅 <bdi>${date}</bdi></span>` : ''}
       <bdi class="badge src">${esc(NAMES[j.source] || j.source)}</bdi>${also}
     </div>
     ${matchedLine}
-    ${j.description ? `<div class="desc" onclick="this.classList.toggle('open')" title="לחצו להרחבה">${esc(j.description)}</div>` : ''}
+    ${j.description ? `<div class="desc" onclick="this.classList.toggle('open')" title="${esc(T('expand'))}">${esc(j.description)}</div>` : ''}
     <div class="jobfoot">
-      <button class="${st === 'saved' ? 'on' : ''}" onclick="mark('${j.uid}','saved',this)">⭐ ${st === 'saved' ? 'שמורה' : 'שמירה'}</button>
-      <button class="${st === 'applied' ? 'on' : ''}" onclick="mark('${j.uid}','applied',this)">✅ ${st === 'applied' ? 'הגשתי' : 'סימון שהגשתי'}</button>
-      <button onclick="mark('${j.uid}','hidden',this)">🙈 הסתרה</button>
+      <button class="${st === 'saved' ? 'on' : ''}" onclick="mark('${j.uid}','saved',this)">⭐ ${esc(st === 'saved' ? T('saved_on') : T('save'))}</button>
+      <button class="${st === 'applied' ? 'on' : ''}" onclick="mark('${j.uid}','applied',this)">✅ ${esc(st === 'applied' ? T('applied_on') : T('mark_applied'))}</button>
+      <button onclick="mark('${j.uid}','hidden',this)">🙈 ${esc(T('hide'))}</button>
     </div></article>`;
 }
 
 async function mark(uid, status, btn) {
-  try { await api(`/api/jobs/${uid}/status/${status}`, {method: 'POST'}); } catch (e) { btn.textContent = 'שגיאה'; return; }
+  try { await api(`/api/jobs/${uid}/status/${status}`, {method: 'POST'}); } catch (e) { btn.textContent = T('error'); return; }
   const j = jobs.find(x => x.uid === uid); if (j) { j.extra = {...(j.extra || {}), status}; }
   if (status === 'hidden') { jobs = jobs.filter(x => x.uid !== uid); }
   render();

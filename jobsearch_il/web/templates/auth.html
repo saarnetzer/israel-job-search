@@ -1,40 +1,43 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="{{ lang }}" dir="{{ L.dir }}">
 <head>
 {% include "_head.html" %}
-<title>{{ "התחברות" if mode == "login" else "הרשמה" }} · חיפוש עבודה בישראל</title>
+<title>{{ t('login') if mode == "login" else t('register') }} · {{ t('app_title') }}</title>
 </head>
 <body>
 <div class="wrap">
   <div class="authbox panel">
-    <h1 style="font-size:24px;margin-bottom:4px">🔎 חיפוש עבודה בישראל</h1>
-    <p class="muted" style="margin:0 0 18px">חיפוש אחד בכל אתרי הדרושים</p>
-    <h2>{{ "התחברות" if mode == "login" else "יצירת חשבון" }}</h2>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <h1 style="font-size:24px;margin-bottom:4px">🔎 {{ t('app_title') }}</h1>
+      <div class="userbox">{% include "_langswitch.html" %}</div>
+    </div>
+    <p class="muted" style="margin:0 0 18px">{{ t('app_tagline') }}</p>
+    <h2>{{ t('login') if mode == "login" else t('create_account') }}</h2>
     {% if error %}<div class="msg err" role="alert">{{ error }}</div>{% endif %}
     {% if mode == "register" and not registration_open %}
-      <div class="msg err">ההרשמה סגורה כרגע.</div>
+      <div class="msg err">{{ t('reg_closed') }}</div>
     {% else %}
     <form method="post" action="/{{ mode }}">
-      <label class="field">אימייל
+      <label class="field">{{ t('email') }}
         <input type="email" name="email" value="{{ email }}" required autocomplete="email" dir="ltr" autofocus></label>
-      <label class="field">סיסמה
+      <label class="field">{{ t('password') }}
         <input type="password" name="password" required minlength="{{ 8 if mode == 'register' else 1 }}"
                autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}" dir="ltr"></label>
       {% if mode == "register" %}
-      <label class="field">אימות סיסמה
+      <label class="field">{{ t('password2') }}
         <input type="password" name="password2" required minlength="8" autocomplete="new-password" dir="ltr"></label>
-      <div class="muted">לפחות 8 תווים.</div>
+      <div class="muted">{{ t('min8') }}</div>
       {% if need_invite %}
-      <label class="field">קוד הזמנה
+      <label class="field">{{ t('invite') }}
         <input type="text" name="invite" required autocomplete="off" dir="ltr"></label>
       {% endif %}
       {% endif %}
-      <button class="primary" type="submit">{{ "כניסה" if mode == "login" else "הרשמה" }}</button>
+      <button class="primary" type="submit">{{ t('enter') if mode == "login" else t('register') }}</button>
     </form>
     {% endif %}
     <p class="muted" style="margin-top:16px">
-      {% if mode == "login" %}אין לכם חשבון? <a href="/register">להרשמה</a>
-      {% else %}כבר רשומים? <a href="/login">להתחברות</a>{% endif %}
+      {% if mode == "login" %}{{ t('no_account') }} <a href="/register">{{ t('to_register') }}</a>
+      {% else %}{{ t('have_account') }} <a href="/login">{{ t('to_login') }}</a>{% endif %}
     </p>
   </div>
 </div>

@@ -1,0 +1,1 @@
+{% for code, meta in langs.items() if code != lang %}<a class="langswitch" href="/lang/{{ code }}?next={{ path | urlencode }}" lang="{{ code }}" hreflang="{{ code }}">🌐 {{ meta.name }}</a>{% endfor %}

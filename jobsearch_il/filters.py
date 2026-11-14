@@ -41,8 +41,9 @@ def matches(job: Job, c: SearchCriteria, now: datetime | None = None) -> bool:
         return False
 
     if c.locations:
-        remote_ok = c.remote_only or any(normalize(l) in ("remote", "מהבית", "מרחוק") for l in c.locations)
-        locs = [l for l in c.locations if normalize(l) not in ("remote", "מהבית", "מרחוק")]
+        remote_words = ("remote", "מהבית", "מרחוק", "من البيت", "عن بعد")
+        remote_ok = c.remote_only or any(normalize(l) in remote_words for l in c.locations)
+        locs = [l for l in c.locations if normalize(l) not in remote_words]
         if locs and not location_matches(job.location, locs) and not (remote_ok and _is_remote(job)):
             return False
 

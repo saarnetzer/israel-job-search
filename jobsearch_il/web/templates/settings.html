@@ -1,73 +1,70 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="{{ lang }}" dir="{{ L.dir }}">
 <head>
-<title>הגדרות · חיפוש עבודה בישראל</title>
+<title>{{ t('settings_title') }} · {{ t('app_title') }}</title>
 {% include "_head.html" %}
 </head>
 <body>
 <div class="wrap" style="max-width:760px">
 {% include "_topbar.html" %}
-<p class="sub">הגדרות החשבון שלך · <a href="/">חזרה לחיפוש</a></p>
+<p class="sub">{{ t('settings_sub') }} · <a href="/">{{ t('back_to_search') }}</a></p>
 
 <section class="panel">
-  <h2>ברירות מחדל לחיפוש</h2>
-  <p class="muted" style="margin-top:-6px">כך ייראה טופס החיפוש בכל פעם שתיכנסו.</p>
+  <h2>{{ t('defaults_title') }}</h2>
+  <p class="muted" style="margin-top:-6px">{{ t('defaults_desc') }}</p>
   <form id="defaults" class="adv" style="margin-top:0">
-    <label>מילות חיפוש <input type="text" name="q" placeholder="python, backend"></label>
-    <label>מיקום <input type="text" name="location" list="regions" placeholder="מרכז, חיפה"></label>
-    <label>היקף משרה
-      <select name="job_type"><option value="">הכל</option><option value="משרה מלאה">מלאה</option><option value="משרה חלקית">חלקית</option>
-        <option value="סטודנט">סטודנטים</option><option value="משמרות">משמרות</option><option value="פרילנס">פרילנס</option><option value="התמחות">התמחות</option></select></label>
-    <label>פורסם ב־
-      <select name="days"><option value="">כל זמן</option><option value="1">יום אחרון</option><option value="3">3 ימים</option>
-        <option value="7">שבוע</option><option value="14">שבועיים</option><option value="30">חודש</option></select></label>
-    <label>מקסימום שנות ניסיון
-      <select name="max_exp"><option value="">לא משנה</option><option value="0">ללא ניסיון</option><option value="1">עד שנה</option>
-        <option value="2">עד 2</option><option value="3">עד 3</option><option value="5">עד 5</option></select></label>
-    <label>שכר מינימלי (₪) <input type="number" name="min_salary" min="0" step="500"></label>
-    <label>מילים לפסילה <input type="text" name="exclude" placeholder="senior, ראש צוות"></label>
-    <label>חברות לפסילה <input type="text" name="exclude_company"></label>
+    <label>{{ t('kw') }} <input type="text" name="q" placeholder="python, backend"></label>
+    <label>{{ t('location') }} <input type="text" name="location" list="regions" placeholder="{{ t('loc_ph_short') }}"></label>
+    <label>{{ t('job_type') }}
+      {% include "_jobtype_select.html" %}</label>
+    <label>{{ t('posted') }}
+      {% include "_days_select.html" %}</label>
+    <label>{{ t('max_exp') }}
+      {% include "_exp_select.html" %}</label>
+    <label>{{ t('min_salary_short') }} <input type="number" name="min_salary" min="0" step="500"></label>
+    <label>{{ t('exclude_words') }} <input type="text" name="exclude" placeholder="{{ t('exclude_words_ph') }}"></label>
+    <label>{{ t('exclude_companies') }} <input type="text" name="exclude_company"></label>
     <div class="checks" style="grid-column:1/-1;margin-top:0">
-      <label><input type="checkbox" name="remote"> רק מהבית / היברידי</label>
-      <label><input type="checkbox" name="match_all"> כל המילים חייבות להופיע</label>
-      <label><input type="checkbox" name="title_only"> חיפוש בכותרת בלבד</label>
+      <label><input type="checkbox" name="remote"> {{ t('remote') }}</label>
+      <label><input type="checkbox" name="match_all"> {{ t('match_all') }}</label>
+      <label><input type="checkbox" name="title_only"> {{ t('title_only') }}</label>
     </div>
     <div class="checks" id="srcs" style="grid-column:1/-1;margin-top:0"></div>
     <div class="row" style="grid-column:1/-1">
-      <button class="primary" type="submit">שמירה</button><span id="defMsg"></span>
+      <button class="primary" type="submit">{{ t('save') }}</button><span id="defMsg"></span>
     </div>
   </form>
   <datalist id="regions"></datalist>
 </section>
 
 <section class="panel">
-  <h2>קורות חיים</h2>
+  <h2>{{ t('cv_title') }}</h2>
   <div id="cvinfo"></div>
 </section>
 
 <section class="panel">
-  <h2>חיפושים שמורים</h2>
+  <h2>{{ t('saved_searches_title') }}</h2>
   <ul class="list" id="searches"></ul>
 </section>
 
 <section class="panel">
-  <h2>שינוי סיסמה</h2>
+  <h2>{{ t('change_pw') }}</h2>
   <form id="pw" style="display:grid;gap:10px;max-width:360px">
-    <label class="field">סיסמה נוכחית <input type="password" name="current" required autocomplete="current-password" dir="ltr"></label>
-    <label class="field">סיסמה חדשה <input type="password" name="new" required minlength="8" autocomplete="new-password" dir="ltr"></label>
-    <label class="field">אימות סיסמה חדשה <input type="password" name="new2" required minlength="8" autocomplete="new-password" dir="ltr"></label>
-    <div class="row"><button class="primary" type="submit">עדכון סיסמה</button></div>
+    <label class="field">{{ t('cur_pw') }} <input type="password" name="current" required autocomplete="current-password" dir="ltr"></label>
+    <label class="field">{{ t('new_pw') }} <input type="password" name="new" required minlength="8" autocomplete="new-password" dir="ltr"></label>
+    <label class="field">{{ t('new_pw2') }} <input type="password" name="new2" required minlength="8" autocomplete="new-password" dir="ltr"></label>
+    <div class="row"><button class="primary" type="submit">{{ t('update_pw') }}</button></div>
     <div id="pwMsg"></div>
-    <p class="muted" style="margin:0">אחרי שינוי הסיסמה, מכשירים אחרים יתנתקו.</p>
+    <p class="muted" style="margin:0">{{ t('pw_note') }}</p>
   </form>
 </section>
 
 <section class="panel">
-  <h2>מחיקת חשבון</h2>
-  <p class="muted" style="margin-top:-6px">מוחק את החשבון, החיפושים השמורים והסימונים שלך. אי אפשר לבטל.</p>
+  <h2>{{ t('del_title') }}</h2>
+  <p class="muted" style="margin-top:-6px">{{ t('del_desc') }}</p>
   <form id="del" class="row">
-    <input type="password" name="password" placeholder="הסיסמה שלך לאישור" required style="max-width:260px" dir="ltr">
-    <button class="danger" type="submit">מחיקת החשבון</button>
+    <input type="password" name="password" placeholder="{{ t('del_ph') }}" required style="max-width:260px" dir="ltr">
+    <button class="danger" type="submit">{{ t('del_btn') }}</button>
   </form>
   <div id="delMsg" style="margin-top:10px"></div>
 </section>
@@ -76,15 +73,17 @@
 <script>
 const BOOT = {{ boot|safe }};
 const $ = s => document.querySelector(s);
+const T = (k, v = {}) => String(BOOT.T[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? '');
+const LOCALE = BOOT.locale;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const api = (url, opts = {}) => fetch(url, {...opts, headers: {'Content-Type': 'application/json'}})
   .then(async r => { if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
                      const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || r.status); return d; });
 const msg = (el, text, ok) => { el.innerHTML = `<div class="msg ${ok ? 'ok' : 'err'}">${esc(text)}</div>`; };
 
-BOOT.regions.forEach(r => $('#regions').insertAdjacentHTML('beforeend', `<option value="${esc(r)}">`));
+BOOT.regions.forEach(r => $('#regions').insertAdjacentHTML('beforeend', `<option value="${esc(BOOT.region_labels[r] || r)}">`));
 const df = $('#defaults');
-$('#srcs').innerHTML = '<span class="muted">אתרים:</span>' + BOOT.sources.filter(s => s.active).map(s =>
+$('#srcs').innerHTML = `<span class="muted">${esc(T('sites_label'))}</span>` + BOOT.sources.filter(s => s.active).map(s =>
   `<label><input type="checkbox" name="src" value="${s.name}" checked> <bdi>${esc(s.display_name)}</bdi></label>`).join('');
 const d0 = (BOOT.settings || {}).defaults || {};
 for (const [k, v] of Object.entries(d0)) {
@@ -103,18 +102,18 @@ df.onsubmit = async e => {
     if (x !== '' && x !== false) v[el.name] = x;
   }
   v.source = [...df.querySelectorAll('input[name=src]:checked')].map(x => x.value);
-  try { await api('/api/settings', {method: 'PUT', body: JSON.stringify({defaults: v})}); msg($('#defMsg'), 'נשמר', true); }
+  try { await api('/api/settings', {method: 'PUT', body: JSON.stringify({defaults: v})}); msg($('#defMsg'), T('saved_msg'), true); }
   catch (err) { msg($('#defMsg'), err.message); }
 };
 
 let CV = BOOT.cv;
 function renderCVInfo() {
   $('#cvinfo').innerHTML = CV
-    ? `<div class="row" style="justify-content:space-between"><span>📄 <b>${esc(CV.filename)}</b>
-         <span class="muted">· הועלה ${new Date(CV.uploaded_at).toLocaleDateString('he-IL')} · ${CV.profile.roles.length} תפקידים, ${CV.profile.skills.length} כישורים</span></span>
-         <button class="ghost" id="cvdel">מחיקת קורות החיים</button></div>
-       <p class="muted" style="margin-bottom:0">נשמר רק הטקסט שחולץ מהקובץ, לא הקובץ עצמו. אפשר לערוך את התפקידים והכישורים בדף החיפוש, בלשונית "לפי קורות חיים".</p>`
-    : '<p class="muted" style="margin:0">לא הועלו קורות חיים. אפשר להעלות בדף החיפוש, בלשונית "לפי קורות חיים".</p>';
+    ? `<div class="row" style="justify-content:space-between"><span>📄 <b><bdi>${esc(CV.filename)}</bdi></b>
+         <span class="muted">· <bdi>${esc(T('cv_uploaded', {date: new Date(CV.uploaded_at).toLocaleDateString(LOCALE)}))}</bdi> · ${esc(T('cv_counts', {r: CV.profile.roles.length, s: CV.profile.skills.length}))}</span></span>
+         <button class="ghost" id="cvdel">${esc(T('cv_delete'))}</button></div>
+       <p class="muted" style="margin-bottom:0">${esc(T('cv_info_note'))}</p>`
+    : `<p class="muted" style="margin:0">${esc(T('cv_none'))}</p>`;
   const b = $('#cvdel'); if (b) b.onclick = async () => { await api('/api/cv', {method: 'DELETE'}); CV = null; renderCVInfo(); };
 }
 renderCVInfo();
@@ -125,8 +124,8 @@ function renderSearches() {
     const p = s.params || {};
     const summary = [p.q, p.location, p.job_type].filter(Boolean).join(' · ');
     return `<li><span><b>${esc(s.name)}</b> <span class="muted">${esc(summary)}</span></span>
-      <button class="ghost" onclick="delSearch(${s.id})">מחיקה</button></li>`;
-  }).join('') : '<li class="muted">אין חיפושים שמורים. אפשר לשמור חיפוש מדף החיפוש.</li>';
+      <button class="ghost" onclick="delSearch(${s.id})">${esc(T('delete'))}</button></li>`;
+  }).join('') : `<li class="muted">${esc(T('no_saved'))}</li>`;
 }
 async function delSearch(id) {
   try { await api('/api/searches/' + id, {method: 'DELETE'}); searches = searches.filter(s => s.id !== id); renderSearches(); }
@@ -136,15 +135,15 @@ renderSearches();
 
 $('#pw').onsubmit = async e => {
   e.preventDefault(); const f = e.target;
-  if (f.new.value !== f.new2.value) { msg($('#pwMsg'), 'הסיסמאות החדשות לא תואמות'); return; }
+  if (f.new.value !== f.new2.value) { msg($('#pwMsg'), T('pw_mismatch_new')); return; }
   try { await api('/api/settings/password', {method: 'POST', body: JSON.stringify({current: f.current.value, new: f.new.value})});
-        f.reset(); msg($('#pwMsg'), 'הסיסמה עודכנה', true); }
+        f.reset(); msg($('#pwMsg'), T('pw_updated'), true); }
   catch (err) { msg($('#pwMsg'), err.message); }
 };
 
 $('#del').onsubmit = async e => {
   e.preventDefault();
-  if (!confirm('למחוק את החשבון לצמיתות?')) return;
+  if (!confirm(T('del_confirm'))) return;
   try { await api('/api/account', {method: 'DELETE', body: JSON.stringify({password: e.target.password.value})});
         location.href = '/register'; }
   catch (err) { msg($('#delMsg'), err.message); }
