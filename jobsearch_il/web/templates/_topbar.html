@@ -3,6 +3,7 @@
   <div class="userbox">
     <span dir="ltr">{{ user.email }}</span>
     {% include "_langswitch.html" %}
+    {% if is_admin %}<a href="/admin">{{ t('admin_link') }}</a>{% endif %}
     <a href="/settings">{{ t('settings_link') }}</a>
     <form method="post" action="/logout" style="margin:0"><button type="submit">{{ t('logout') }}</button></form>
   </div>

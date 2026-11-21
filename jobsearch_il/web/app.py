@@ -21,6 +21,7 @@ from ..cv import (LEARN_MIN_USERS, CVError, CVProfile, excluded_by, extract_prof
 from ..engine import JobSearchEngine
 from ..locations import REGIONS
 from ..models import SearchCriteria
+from ..stats import admin_stats, record_event
 from ..storage import STATUSES, JobStore
 from . import i18n
 
@@ -60,7 +61,8 @@ class LoginRequired(Exception):
 
 def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
                engine: JobSearchEngine | None = None, invite_code: str | None = None,
-               secure_cookies: bool = False, registration_open: bool = True) -> FastAPI:
+               secure_cookies: bool = False, registration_open: bool = True,
+               admin_emails: list[str] | None = None) -> FastAPI:
     engine = engine or JobSearchEngine(config or {}, store=JobStore(db_url))
     if engine.store is None:
         raise ValueError("the web app needs a database")
@@ -93,10 +95,23 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         detail = i18n.localize(exc.detail, i18n.get_lang(request)) if isinstance(exc.detail, str) else exc.detail
         return JSONResponse({"detail": detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
 
+    admins = {a.strip().lower() for a in (admin_emails or []) if a.strip()}
+
+    def is_admin(user: dict[str, Any] | None) -> bool:
+        """Admins are the ADMIN_EMAILS; if none are configured, the first user who registered (the site owner)."""
+        if not user:
+            return False
+        if admins:
+            return user["email"].lower() in admins
+        return user["id"] == users.first_user_id()
+
+    def event(request: Request, kind: str, user_id: int | None, mode: str | None = None) -> None:
+        record_event(users.engine, kind, user_id, mode, i18n.get_lang(request))
+
     def page(request: Request, name: str, ctx: dict[str, Any], status: int = 200):
         """Render a template in the user's language (Hebrew or Arabic)."""
         lang = i18n.get_lang(request)
-        ctx = {**ctx, "lang": lang, "L": i18n.LANGS[lang], "langs": i18n.LANGS, "path": request.url.path,
+        ctx = {**ctx, "is_admin": is_admin(ctx.get("user")), "lang": lang, "L": i18n.LANGS[lang], "langs": i18n.LANGS, "path": request.url.path,
                "t": lambda key, **kw: i18n.t(key, lang, **kw)}
         if "boot" in ctx:
             ctx["boot"] = json.dumps({**ctx["boot"], "T": i18n.strings_for(lang), "lang": lang,
@@ -182,6 +197,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             return auth_page(request, "login", "אימייל או סיסמה שגויים", email, 401)
         for k in keys:
             limiter.reset(k)
+        event(request, "login", uid)
         return set_session(RedirectResponse("/", status_code=303), uid)
 
     @app.get("/register", response_class=HTMLResponse)
@@ -205,6 +221,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             uid = users.register(email, password)
         except AuthError as e:
             return auth_page(request, "register", str(e), email, 400)
+        event(request, "signup", uid)
         return set_session(RedirectResponse("/", status_code=303), uid)
 
     @app.post("/logout")
@@ -227,6 +244,20 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         boot = {"sources": sources_info(), "regions": list(REGIONS), "settings": user["settings"],
                 "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
         return page(request, "settings.html", {"boot": boot, "user": user})
+
+    # ------------------------------------------------------------------ admin
+    @app.get("/admin", response_class=HTMLResponse)
+    def admin_page(request: Request, user: dict = Depends(page_user)):
+        if not is_admin(user):
+            return RedirectResponse("/", status_code=303)
+        return page(request, "admin.html", {"boot": {"stats": admin_stats(users.engine),
+                                                      "sources": sources_info()}, "user": user})
+
+    @app.get("/api/admin/stats")
+    def admin_stats_api(days: int = Query(30, ge=1, le=365), user: dict = Depends(api_user)):
+        if not is_admin(user):
+            raise HTTPException(403, "אין הרשאה")
+        return admin_stats(users.engine, days=days)
 
     # ------------------------------------------------------------------ API
     @app.get("/api/me")
@@ -283,7 +314,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         return {"cv": cv_info(user["id"])}
 
     @app.post("/api/cv")
-    async def upload_cv(file: UploadFile = File(...), user: dict = Depends(api_user)):
+    async def upload_cv(request: Request, file: UploadFile = File(...), user: dict = Depends(api_user)):
         data = await file.read(5 * 1024 * 1024 + 1)
         try:
             text = extract_text(file.filename or "", data)
@@ -291,6 +322,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
             raise HTTPException(400, str(e))
         profile = extract_profile(text, learned=list(users.learned_roles()))
         users.save_cv(user["id"], file.filename or "cv", text, profile.to_dict())
+        event(request, "cv_upload", user["id"])
         return {"cv": cv_info(user["id"])}
 
     @app.put("/api/cv")
@@ -329,7 +361,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
                 "now": (datetime.now() - timedelta(seconds=2)).isoformat(timespec="seconds")}
 
     @app.get("/api/search")
-    def api_search(c: SearchCriteria = Depends(criteria_params), live: bool = False, status: str | None = None,
+    def api_search(request: Request, c: SearchCriteria = Depends(criteria_params), live: bool = False, status: str | None = None,
                    since: str | None = None, mark: bool = False, cv: bool = False,
                    seen_after: str | None = None,
                    min_match: int = Query(25, ge=0, le=100), user: dict = Depends(api_user)):
@@ -383,8 +415,9 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
                     scored.append(j)
             jobs = sorted(scored, key=lambda j: (matches[j.uid]["score"], j.posted_at or datetime.min), reverse=True)
             jobs = jobs[:limit] if limit else jobs
-        if mark:
+        if mark:  # the last step of a search from the page: count it once
             users.mark_searched(user["id"])
+            event(request, "search", user["id"], "cv" if cv else "words")
 
         def is_new(j) -> bool:  # no cutoff = first search ever: nothing is "new" yet
             return cutoff is not None and j.extra.get("first_seen", "") > cutoff.isoformat(timespec="seconds")

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ L.dir }}">
+<head>
+<title>{{ t('admin_title') }} · {{ t('app_title') }}</title>
+{% include "_head.html" %}
+</head>
+<body>
+<div class="wrap">
+{% include "_topbar.html" %}
+<div class="row" style="justify-content:space-between;margin-bottom:12px">
+  <h2 style="margin:0">{{ t('admin_title') }}</h2>
+  <span class="muted"><span id="generated"></span> · <a href="/admin">{{ t('adm_refresh') }}</a> · <a href="/">{{ t('back_to_search') }}</a></span>
+</div>
+<p class="note" id="lognote"></p>
+
+<div class="kpis" id="kpis"></div>
+
+<section class="panel">
+  <h2>{{ t('adm_daily') }}</h2>
+  <div class="tablewrap"><table class="stats" id="daily"></table></div>
+</section>
+
+<div class="twocol">
+  <section class="panel"><h2>{{ t('adm_split') }}</h2><div id="split"></div></section>
+  <section class="panel"><h2>{{ t('adm_users_lang') }}</h2><div id="langs"></div></section>
+</div>
+
+<section class="panel">
+  <h2>{{ t('adm_users') }} (<span id="nusers"></span>)</h2>
+  <input type="text" id="ufilter" placeholder="{{ t('quick_ph') }}" style="max-width:280px;margin-bottom:10px">
+  <div class="tablewrap"><table class="stats" id="users"></table></div>
+</section>
+<p class="muted" style="font-size:12px">{{ t('adm_privacy') }}</p>
+</div>
+
+<script>
+const BOOT = {{ boot|safe }};
+const S = BOOT.stats;
+const $ = s => document.querySelector(s);
+const T = (k, v = {}) => String(BOOT.T[k] ?? k).replace(/\{(\w+)\}/g, (_, n) => v[n] ?? '');
+const LOCALE = BOOT.locale;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = n => Number(n || 0).toLocaleString(LOCALE);
+const when = iso => iso ? new Date(iso).toLocaleString(LOCALE, {dateStyle: 'short', timeStyle: 'short'}) : '—';
+const day = iso => new Date(iso + 'T00:00').toLocaleDateString(LOCALE, {weekday: 'short', day: 'numeric', month: 'numeric'});
+
+$('#generated').innerHTML = `<bdi>${esc(when(S.generated_at))}</bdi>`;
+$('#lognote').textContent = S.log_started ? T('adm_log_note', {date: when(S.log_started)}) : T('adm_no_log');
+
+const t = S.totals;
+const kpis = [
+  ['adm_registered', t.registered, true], ['adm_new', t.new_7d], ['adm_new_30', t.new_30d],
+  ['adm_active_7', t.active_7d, true], ['adm_active_30', t.active_30d], ['adm_logged_in', t.logged_in],
+  ['adm_searches_7', t.searches_7d], ['adm_searches_30', t.searches_30d], ['adm_cvs', t.cvs],
+  ['adm_saved', t.saved_searches], ['adm_jobs', t.jobs_in_db], ['adm_learned', t.learned_roles],
+];
+$('#kpis').innerHTML = kpis.map(([k, v, big]) =>
+  `<div class="kpi ${big ? 'big' : ''}"><div class="v">${num(v)}</div><div class="l">${esc(T(k))}</div></div>`).join('');
+
+const maxSearch = Math.max(1, ...S.daily.map(d => d.searches));
+$('#daily').innerHTML = `<thead><tr><th>${esc(T('adm_day'))}</th><th>${esc(T('adm_signups'))}</th><th>${esc(T('adm_searches'))}</th>
+  <th>${esc(T('adm_searchers'))}</th><th>${esc(T('adm_logins'))}</th><th>${esc(T('adm_cv_uploads'))}</th></tr></thead><tbody>` +
+  S.daily.filter((d, i) => i < 7 || d.signups + d.searches + d.logins + d.cv_uploads).map(d => `<tr class="${d.signups + d.searches + d.logins + d.cv_uploads ? '' : 'quiet'}">
+    <td><bdi>${esc(day(d.day))}</bdi></td><td>${num(d.signups)}</td>
+    <td><span class="bar" style="width:${Math.round(60 * d.searches / maxSearch)}px"></span>${num(d.searches)}</td>
+    <td>${num(d.searchers)}</td><td>${num(d.logins)}</td><td>${num(d.cv_uploads)}</td></tr>`).join('') + '</tbody>';
+
+const bars = (obj, label) => {
+  const entries = Object.entries(obj); const total = entries.reduce((a, [, n]) => a + n, 0) || 1;
+  return entries.length ? entries.sort((a, b) => b[1] - a[1]).map(([k, n]) =>
+    `<div class="hbar"><span class="k">${esc(label(k))}</span><span class="track"><span style="width:${Math.round(100 * n / total)}%"></span></span><span class="n">${num(n)}</span></div>`).join('')
+    : '<div class="muted">—</div>';
+};
+const modeLabel = k => k === 'cv' ? T('adm_mode_cv') : k === 'words' ? T('adm_mode_words') : k;
+const langLabel = k => k === 'ar' ? 'العربية' : k === 'he' ? 'עברית' : k;
+$('#split').innerHTML = bars(S.searches_by_mode, modeLabel) + '<div style="height:10px"></div>' + bars(S.searches_by_lang, langLabel);
+$('#langs').innerHTML = bars(S.users_by_lang, langLabel);
+
+function renderUsers() {
+  const f = $('#ufilter').value.trim().toLowerCase();
+  const list = S.users.filter(u => !f || u.email.toLowerCase().includes(f));
+  $('#nusers').textContent = num(S.users.length);
+  $('#users').innerHTML = `<thead><tr><th>${esc(T('adm_email'))}</th><th>${esc(T('adm_joined'))}</th><th>${esc(T('adm_last_search'))}</th>
+    <th>${esc(T('adm_searches'))}</th><th>${esc(T('adm_saved'))}</th><th>${esc(T('adm_has_cv'))}</th></tr></thead><tbody>` +
+    list.map(u => `<tr><td dir="ltr" style="text-align:start">${esc(u.email)}</td><td><bdi>${esc(when(u.created_at))}</bdi></td>
+      <td><bdi>${esc(when(u.last_search_at))}</bdi></td><td>${num(u.searches)}</td><td>${num(u.saved_searches)}</td>
+      <td>${u.has_cv ? '✓' : ''}</td></tr>`).join('') + '</tbody>';
+}
+$('#ufilter').oninput = renderUsers;
+renderUsers();
+</script>
+</body>
+</html>

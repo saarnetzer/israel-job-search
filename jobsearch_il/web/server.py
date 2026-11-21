@@ -4,6 +4,7 @@ Environment variables:
   DATABASE_URL      postgres://... (Neon) - required on Render, the local disk is wiped on restart
   INVITE_CODE       optional; when set, registering requires this code
   REGISTRATION      "open" (default) or "closed"
+  ADMIN_EMAILS      comma-separated emails that can open /admin (default: the first user who registered)
   CONFIG_PATH       optional config.yaml path
   PORT              set by Render
 """
@@ -26,6 +27,7 @@ def build():
         invite_code=os.environ.get("INVITE_CODE") or None,
         secure_cookies=os.environ.get("SECURE_COOKIES", "1") != "0",
         registration_open=os.environ.get("REGISTRATION", "open") != "closed",
+        admin_emails=(os.environ.get("ADMIN_EMAILS") or "").split(","),
     )
 
 

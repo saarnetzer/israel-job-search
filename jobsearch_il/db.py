@@ -84,6 +84,17 @@ learned_role_users = sa.Table(
     sa.Column("created_at", sa.DateTime, nullable=False),
 )
 
+# usage log for the admin page: when and what kind of action, never what was searched
+events = sa.Table(
+    "events", metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("ts", sa.DateTime, nullable=False, index=True),
+    sa.Column("user_id", sa.Integer, nullable=True, index=True),
+    sa.Column("kind", sa.String(20), nullable=False),   # signup / login / search / cv_upload
+    sa.Column("mode", sa.String(10), nullable=True),    # search: words / cv
+    sa.Column("lang", sa.String(5), nullable=True),     # he / ar
+)
+
 
 def make_engine(url: str) -> sa.Engine:
     """Accept a file path, sqlite:// URL, or postgres(ql):// URL (Neon/Render style)."""

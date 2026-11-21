@@ -14,3 +14,5 @@ services:
         sync: false
       - key: REGISTRATION      # "open" or "closed"
         value: open
+      - key: ADMIN_EMAILS      # who can open /admin (comma-separated); empty = the first user who registered
+        sync: false

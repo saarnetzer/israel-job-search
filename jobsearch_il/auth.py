@@ -107,6 +107,10 @@ class UserStore:
             return None
         return row.id if verify_password(password, row.password_hash) else None
 
+    def first_user_id(self) -> int | None:
+        with self.engine.connect() as conn:
+            return conn.execute(sa.select(sa.func.min(db.users.c.id))).scalar()
+
     def get(self, user_id: int) -> dict[str, Any] | None:
         with self.engine.connect() as conn:
             row = conn.execute(sa.select(db.users).where(db.users.c.id == user_id)).mappings().first()
@@ -128,6 +132,8 @@ class UserStore:
         with self.engine.begin() as conn:
             for t in (db.sessions, db.saved_searches, db.user_jobs, db.cvs, db.learned_role_users):
                 conn.execute(t.delete().where(t.c.user_id == user_id))
+            # keep the anonymous counts (a search happened that day), drop the link to the person
+            conn.execute(db.events.update().where(db.events.c.user_id == user_id).values(user_id=None))
             conn.execute(db.users.delete().where(db.users.c.id == user_id))
 
     def update_settings(self, user_id: int, settings: dict[str, Any]) -> None:
