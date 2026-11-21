@@ -50,6 +50,24 @@ def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
+NAME_RE = re.compile(r"^[^\W\d_](?:[^\W\d_]|[ '\-\.\u05F3\u05F4\u2019])*$")  # letters in any script, spaces, ' - .
+
+
+def clean_name(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def validate_names(first: str, last: str) -> tuple[str, str]:
+    first, last = clean_name(first), clean_name(last)
+    if not first or not last:
+        raise AuthError("יש למלא שם פרטי ושם משפחה")
+    if len(first) > 60 or len(last) > 60:
+        raise AuthError("השם ארוך מדי")
+    if not NAME_RE.match(first) or not NAME_RE.match(last):
+        raise AuthError("השם יכול להכיל רק אותיות, רווחים, מקף וגרש")
+    return first, last
+
+
 def validate_password(password: str) -> None:
     if len(password or "") < MIN_PASSWORD:
         raise AuthError(f"הסיסמה צריכה להכיל לפחות {MIN_PASSWORD} תווים")
@@ -86,7 +104,8 @@ class UserStore:
         self.engine = engine
 
     # ------------------------------------------------------------ accounts
-    def register(self, email: str, password: str) -> int:
+    def register(self, email: str, password: str, first_name: str, last_name: str) -> int:
+        first_name, last_name = validate_names(first_name, last_name)
         email = normalize_email(email)
         if not EMAIL_RE.match(email) or len(email) > 254:
             raise AuthError("כתובת אימייל לא תקינה")
@@ -95,7 +114,8 @@ class UserStore:
             if conn.execute(sa.select(db.users.c.id).where(db.users.c.email == email)).first():
                 raise AuthError("כבר קיים חשבון עם האימייל הזה")
             res = conn.execute(db.users.insert().values(
-                email=email, password_hash=hash_password(password), settings="{}", created_at=datetime.now()))
+                email=email, password_hash=hash_password(password), first_name=first_name, last_name=last_name,
+                settings="{}", created_at=datetime.now()))
             return int(res.inserted_primary_key[0])
 
     def authenticate(self, email: str, password: str) -> int | None:
@@ -116,8 +136,15 @@ class UserStore:
             row = conn.execute(sa.select(db.users).where(db.users.c.id == user_id)).mappings().first()
         if row is None:
             return None
-        return {"id": row["id"], "email": row["email"], "settings": json.loads(row["settings"] or "{}"),
+        return {"id": row["id"], "email": row["email"], "first_name": row["first_name"] or "",
+                "last_name": row["last_name"] or "", "settings": json.loads(row["settings"] or "{}"),
                 "created_at": row["created_at"], "last_search_at": row["last_search_at"]}
+
+    def update_name(self, user_id: int, first_name: str, last_name: str) -> None:
+        first_name, last_name = validate_names(first_name, last_name)
+        with self.engine.begin() as conn:
+            conn.execute(db.users.update().where(db.users.c.id == user_id)
+                         .values(first_name=first_name, last_name=last_name))
 
     def change_password(self, user_id: int, current: str, new: str) -> None:
         with self.engine.connect() as conn:

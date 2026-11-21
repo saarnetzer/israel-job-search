@@ -1,7 +1,8 @@
 <div class="topbar">
   <h1><a href="/">🔎 {{ t('app_title') }}</a></h1>
   <div class="userbox">
-    <span dir="ltr">{{ user.email }}</span>
+    {% if user.first_name %}<span title="{{ user.email }}"><bdi>{{ user.first_name }} {{ user.last_name }}</bdi></span>
+    {% else %}<span dir="ltr">{{ user.email }}</span>{% endif %}
     {% include "_langswitch.html" %}
     {% if is_admin %}<a href="/admin">{{ t('admin_link') }}</a>{% endif %}
     <a href="/settings">{{ t('settings_link') }}</a>

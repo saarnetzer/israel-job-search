@@ -18,8 +18,16 @@
       <div class="msg err">{{ t('reg_closed') }}</div>
     {% else %}
     <form method="post" action="/{{ mode }}">
+      {% if mode == "register" %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label class="field">{{ t('first_name') }}
+          <input type="text" name="first_name" value="{{ first_name }}" required maxlength="60" autocomplete="given-name"></label>
+        <label class="field">{{ t('last_name') }}
+          <input type="text" name="last_name" value="{{ last_name }}" required maxlength="60" autocomplete="family-name"></label>
+      </div>
+      {% endif %}
       <label class="field">{{ t('email') }}
-        <input type="email" name="email" value="{{ email }}" required autocomplete="email" dir="ltr" autofocus></label>
+        <input type="email" name="email" value="{{ email }}" required autocomplete="email" dir="ltr" {{ '' if mode == "register" else 'autofocus' }}></label>
       <label class="field">{{ t('password') }}
         <input type="password" name="password" required minlength="{{ 8 if mode == 'register' else 1 }}"
                autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}" dir="ltr"></label>

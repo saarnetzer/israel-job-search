@@ -159,9 +159,11 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         fwd = request.headers.get("x-forwarded-for", "")
         return fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
 
-    def auth_page(request: Request, mode: str, error: str = "", email: str = "", status: int = 200):
+    def auth_page(request: Request, mode: str, error: str = "", email: str = "", status: int = 200,
+                  first_name: str = "", last_name: str = ""):
         return page(request, "auth.html", {
             "mode": mode, "error": i18n.localize(error, i18n.get_lang(request)), "email": email,
+            "first_name": first_name, "last_name": last_name,
             "need_invite": bool(invite_code), "registration_open": registration_open}, status=status)
 
     # ------------------------------------------------------------------ auth pages
@@ -206,7 +208,8 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
 
     @app.post("/register")
     def register(request: Request, email: str = Form(""), password: str = Form(""),
-                 password2: str = Form(""), invite: str = Form("")):
+                 password2: str = Form(""), invite: str = Form(""), first_name: str = Form(""),
+                 last_name: str = Form("")):
         if not registration_open:
             return auth_page(request, "register", "ההרשמה סגורה כרגע", email, 403)
         ip_key = f"reg:{client_ip(request)}"
@@ -218,9 +221,9 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
         if password != password2:
             return auth_page(request, "register", "הסיסמאות לא תואמות", email, 400)
         try:
-            uid = users.register(email, password)
+            uid = users.register(email, password, first_name, last_name)
         except AuthError as e:
-            return auth_page(request, "register", str(e), email, 400)
+            return auth_page(request, "register", str(e), email, 400, first_name=first_name, last_name=last_name)
         event(request, "signup", uid)
         return set_session(RedirectResponse("/", status_code=303), uid)
 
@@ -242,6 +245,7 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
     @app.get("/settings", response_class=HTMLResponse)
     def settings_page(request: Request, user: dict = Depends(page_user)):
         boot = {"sources": sources_info(), "regions": list(REGIONS), "settings": user["settings"],
+                "profile": {"first_name": user["first_name"], "last_name": user["last_name"]},
                 "searches": users.list_searches(user["id"]), "cv": cv_info(user["id"])}
         return page(request, "settings.html", {"boot": boot, "user": user})
 
@@ -262,8 +266,18 @@ def create_app(config: dict[str, Any] | None = None, db_url: str = "jobs.db",
     # ------------------------------------------------------------------ API
     @app.get("/api/me")
     def me(user: dict = Depends(api_user)):
-        return {"email": user["email"], "settings": user["settings"],
+        return {"email": user["email"], "first_name": user["first_name"], "last_name": user["last_name"],
+                "settings": user["settings"],
                 "created_at": user["created_at"].isoformat(timespec="seconds")}
+
+    @app.put("/api/profile")
+    def put_profile(data: dict = Body(...), user: dict = Depends(api_user)):
+        try:
+            users.update_name(user["id"], str(data.get("first_name", "")), str(data.get("last_name", "")))
+        except AuthError as e:
+            raise HTTPException(400, str(e))
+        u = users.get(user["id"])
+        return {"first_name": u["first_name"], "last_name": u["last_name"]}
 
     @app.put("/api/settings")
     def put_settings(data: dict = Body(...), user: dict = Depends(api_user)):

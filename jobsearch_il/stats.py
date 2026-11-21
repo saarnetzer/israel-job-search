@@ -97,13 +97,14 @@ def admin_stats(engine: sa.Engine, days: int = 30, now: datetime | None = None) 
                     .group_by(e.c.user_id).subquery())
         saved = (sa.select(db.saved_searches.c.user_id, sa.func.count().label("n"))
                  .group_by(db.saved_searches.c.user_id).subquery())
-        q = (sa.select(u.c.id, u.c.email, u.c.created_at, u.c.last_search_at, searches.c.n.label("searches"),
+        q = (sa.select(u.c.id, u.c.email, u.c.first_name, u.c.last_name, u.c.created_at, u.c.last_search_at, searches.c.n.label("searches"),
                        saved.c.n.label("saved"), db.cvs.c.user_id.label("has_cv"))
              .select_from(u.outerjoin(searches, searches.c.user_id == u.c.id)
                           .outerjoin(saved, saved.c.user_id == u.c.id)
                           .outerjoin(db.cvs, db.cvs.c.user_id == u.c.id))
              .order_by(u.c.created_at.desc()).limit(500))
-        people = [{"id": r.id, "email": r.email, "created_at": r.created_at.isoformat(timespec="minutes"),
+        people = [{"id": r.id, "email": r.email, "first_name": r.first_name or "", "last_name": r.last_name or "",
+                   "created_at": r.created_at.isoformat(timespec="minutes"),
                    "last_search_at": r.last_search_at.isoformat(timespec="minutes") if r.last_search_at else None,
                    "searches": r.searches or 0, "saved_searches": r.saved or 0, "has_cv": r.has_cv is not None}
                   for r in conn.execute(q)]

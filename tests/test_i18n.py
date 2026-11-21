@@ -39,7 +39,7 @@ def client(db_url, **headers):
 
 
 def register(c):
-    return c.post("/register", data={"email": "a@example.com", "password": "password123", "password2": "password123"})
+    return c.post("/register", data={"email": "a@example.com", "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
 
 
 def test_every_string_has_both_languages():
@@ -92,7 +92,7 @@ def test_server_messages_are_translated(db_url):
     c = client(db_url)
     c.get("/lang/ar")
     assert "البريد الإلكتروني أو كلمة المرور غير صحيحة" in c.post("/login", data={"email": "x@y.co", "password": "x"}).text
-    r = c.post("/register", data={"email": "a@example.com", "password": "short", "password2": "short"})
+    r = c.post("/register", data={"email": "a@example.com", "password": "short", "password2": "short", "first_name": "Test", "last_name": "User"})
     assert "يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل" in r.text
     assert c.get("/api/me").json()["detail"] == "يجب تسجيل الدخول"
     register(c)

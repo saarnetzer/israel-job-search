@@ -30,6 +30,8 @@ users = sa.Table(
     sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
     sa.Column("email", sa.String(254), nullable=False, unique=True),
     sa.Column("password_hash", sa.Text, nullable=False),
+    sa.Column("first_name", sa.String(60), nullable=True),
+    sa.Column("last_name", sa.String(60), nullable=True),
     sa.Column("settings", sa.Text, nullable=False, default="{}"),
     sa.Column("created_at", sa.DateTime, nullable=False),
     sa.Column("last_search_at", sa.DateTime, nullable=True),
@@ -115,4 +117,20 @@ def make_engine(url: str) -> sa.Engine:
         def _fk_on(dbapi_conn, _):  # pragma: no cover - trivial
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
     metadata.create_all(engine)
+    _add_missing_columns(engine)
     return engine
+
+
+# columns added after the first release: create_all() doesn't alter existing tables, so add them here
+_LATER_COLUMNS = {"users": [("first_name", "VARCHAR(60)"), ("last_name", "VARCHAR(60)")]}
+
+
+def _add_missing_columns(engine: sa.Engine) -> None:
+    inspector = sa.inspect(engine)
+    for table, columns in _LATER_COLUMNS.items():
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        missing = [(name, ddl) for name, ddl in columns if name not in existing]
+        if missing:
+            with engine.begin() as conn:
+                for name, ddl in missing:
+                    conn.execute(sa.text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))

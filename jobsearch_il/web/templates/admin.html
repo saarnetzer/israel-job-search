@@ -78,11 +78,12 @@ $('#langs').innerHTML = bars(S.users_by_lang, langLabel);
 
 function renderUsers() {
   const f = $('#ufilter').value.trim().toLowerCase();
-  const list = S.users.filter(u => !f || u.email.toLowerCase().includes(f));
+  const list = S.users.filter(u => !f || `${u.email} ${u.first_name} ${u.last_name}`.toLowerCase().includes(f));
   $('#nusers').textContent = num(S.users.length);
-  $('#users').innerHTML = `<thead><tr><th>${esc(T('adm_email'))}</th><th>${esc(T('adm_joined'))}</th><th>${esc(T('adm_last_search'))}</th>
+  $('#users').innerHTML = `<thead><tr><th>${esc(T('adm_name'))}</th><th>${esc(T('adm_email'))}</th><th>${esc(T('adm_joined'))}</th><th>${esc(T('adm_last_search'))}</th>
     <th>${esc(T('adm_searches'))}</th><th>${esc(T('adm_saved'))}</th><th>${esc(T('adm_has_cv'))}</th></tr></thead><tbody>` +
-    list.map(u => `<tr><td dir="ltr" style="text-align:start">${esc(u.email)}</td><td><bdi>${esc(when(u.created_at))}</bdi></td>
+    list.map(u => `<tr><td style="text-align:start">${u.first_name ? `<bdi>${esc(u.first_name + ' ' + u.last_name)}</bdi>` : `<span class="muted">${esc(T('adm_no_name'))}</span>`}</td>
+      <td dir="ltr" style="text-align:start">${esc(u.email)}</td><td><bdi>${esc(when(u.created_at))}</bdi></td>
       <td><bdi>${esc(when(u.last_search_at))}</bdi></td><td>${num(u.searches)}</td><td>${num(u.saved_searches)}</td>
       <td>${u.has_cv ? '✓' : ''}</td></tr>`).join('') + '</tbody>';
 }

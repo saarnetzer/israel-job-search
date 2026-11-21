@@ -88,7 +88,7 @@ class FakeSource(Source):
 
 def test_cv_web_flow(db_url):
     c = TestClient(create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": FakeSource})))
-    c.post("/register", data={"email": "a@example.com", "password": "password123", "password2": "password123"})
+    c.post("/register", data={"email": "a@example.com", "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
     assert c.get("/api/cv").json() == {"cv": None}
     assert c.get("/api/search", params={"cv": True}).status_code == 400
 
@@ -157,7 +157,7 @@ def test_cv_include_exclude_web(db_url):
                       description="חשבשבת")
 
     c = TestClient(create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": Src})))
-    c.post("/register", data={"email": "r@example.com", "password": "password123", "password2": "password123"})
+    c.post("/register", data={"email": "r@example.com", "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
     c.post("/api/cv", files={"file": ("ronit.docx", docx_bytes(HE_CV), "application/octet-stream")})
     cv = c.put("/api/cv", json={"include": ["ניסיון עם כספים"], "exclude": ["חשבת שכר"]}).json()["cv"]
     assert cv["profile"]["include"] == ["ניסיון עם כספים"] and cv["profile"]["exclude"] == ["חשבת שכר"]
@@ -215,7 +215,7 @@ def test_cv_hides_other_titles_web(db_url):
             yield Job(source="fake", title="משרה משפטית", url="https://f/3", description="דרישות: עו\"ד בעל/ת רישיון, אופיס")
 
     c = TestClient(create_app(engine=JobSearchEngine({}, store=JobStore(db_url), sources={"fake": Src})))
-    c.post("/register", data={"email": "l@example.com", "password": "password123", "password2": "password123"})
+    c.post("/register", data={"email": "l@example.com", "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
     cv_text = "מיכל לוי\nמזכירה משפטית\nידע במשפטים, אופיס, הכנת מסמכים משפטיים\n2019 - היום"
     c.post("/api/cv", files={"file": ("cv.txt", cv_text.encode(), "text/plain")})
     c.get("/api/search", params={"live": True, "q": "מזכירה"})
@@ -318,7 +318,7 @@ def test_user_added_roles_grow_the_shared_dictionary(db_url):
 
     def user(email, cv_text):
         c = TestClient(app)
-        c.post("/register", data={"email": email, "password": "password123", "password2": "password123"})
+        c.post("/register", data={"email": email, "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
         c.post("/api/cv", files={"file": ("cv.txt", cv_text.encode(), "text/plain")})
         return c
 

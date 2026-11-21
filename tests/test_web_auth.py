@@ -31,7 +31,7 @@ def make_client(db_url, **kw):
 
 
 def register(c, email="a@example.com", pw="password123", **extra):
-    return c.post("/register", data={"email": email, "password": pw, "password2": pw, **extra},
+    return c.post("/register", data={"email": email, "password": pw, "password2": pw, "first_name": "Test", "last_name": "User", **extra},
                   follow_redirects=False)
 
 
@@ -63,7 +63,7 @@ def test_register_validation(db_url):
     c = make_client(db_url)
     assert "לפחות 8" in register(c, pw="short").text
     assert "לא תקינה" in register(c, email="not-an-email").text
-    r = c.post("/register", data={"email": "x@y.co", "password": "password123", "password2": "different1"})
+    r = c.post("/register", data={"email": "x@y.co", "password": "password123", "password2": "different1", "first_name": "Test", "last_name": "User"})
     assert "לא תואמות" in r.text
     assert register(c).status_code == 303
     c.cookies.clear()
@@ -181,3 +181,48 @@ def test_since_endpoint_gives_server_clock_for_scoping(db_url):
     assert c.get("/api/search", params={"seen_after": t["now"]}).json()["count"] == 2
     assert c.get("/api/search", params={"seen_after": "2999-01-01T00:00:00"}).json()["count"] == 0
     assert c.get("/api/search", params={"seen_after": "nope"}).status_code == 400
+
+
+def test_names_on_registration_and_settings(db_url):
+    c = make_client(db_url)
+    base = {"email": "n@example.com", "password": "password123", "password2": "password123"}
+    r = c.post("/register", data={**base, "first_name": " ", "last_name": "כהן"})
+    assert r.status_code == 400 and "יש למלא שם פרטי ושם משפחה" in r.text
+    assert 'value="כהן"' in r.text  # what was typed is kept
+    r = c.post("/register", data={**base, "first_name": "<b>x", "last_name": "כהן"})
+    assert r.status_code == 400 and "רק אותיות" in r.text
+    r = c.post("/register", data={**base, "first_name": "  נועה   מרים ", "last_name": "בן-דוד"}, follow_redirects=False)
+    assert r.status_code == 303
+    me = c.get("/api/me").json()
+    assert (me["first_name"], me["last_name"]) == ("נועה מרים", "בן-דוד")
+    assert "נועה מרים בן-דוד" in c.get("/").text  # shown in the top bar
+    # Arabic and English names, apostrophes
+    assert c.put("/api/profile", json={"first_name": "عبد الله", "last_name": "O'Neil"}).status_code == 200
+    assert c.get("/api/me").json()["first_name"] == "عبد الله"
+    assert c.put("/api/profile", json={"first_name": "", "last_name": "x"}).status_code == 400
+    assert c.put("/api/profile", json={"first_name": "a" * 61, "last_name": "x"}).json()["detail"] == "השם ארוך מדי"
+    assert "פרטים אישיים" in c.get("/settings").text
+
+
+def test_existing_database_gets_name_columns(tmp_path):
+    """A database created before names existed (like the live one on Neon) is upgraded on start."""
+    import sqlalchemy as sa
+
+    from jobsearch_il import db
+
+    path = tmp_path / "old.db"
+    eng = sa.create_engine(f"sqlite:///{path}")
+    with eng.begin() as conn:
+        conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(254) NOT NULL UNIQUE, "
+                             "password_hash TEXT NOT NULL, settings TEXT NOT NULL, created_at DATETIME NOT NULL, "
+                             "last_search_at DATETIME)"))
+        conn.execute(sa.text("INSERT INTO users (email, password_hash, settings, created_at) "
+                             "VALUES ('old@example.com', 'x', '{}', '2026-11-01 10:00:00')"))
+    eng.dispose()
+    upgraded = db.make_engine(str(path))
+    cols = {c["name"] for c in sa.inspect(upgraded).get_columns("users")}
+    assert {"first_name", "last_name"} <= cols
+    with upgraded.connect() as conn:
+        row = conn.execute(sa.text("SELECT email, first_name FROM users")).one()
+    assert row == ("old@example.com", None)  # existing users are kept, without a name
+    db.make_engine(str(path))  # running it again changes nothing

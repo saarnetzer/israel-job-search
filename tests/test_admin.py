@@ -32,7 +32,7 @@ def user(new_client, email, lang=None):
     c = new_client()
     if lang:
         c.get(f"/lang/{lang}")
-    c.post("/register", data={"email": email, "password": "password123", "password2": "password123"})
+    c.post("/register", data={"email": email, "password": "password123", "password2": "password123", "first_name": "Test", "last_name": "User"})
     return c
 
 
@@ -107,3 +107,11 @@ def test_events_store_no_search_content_and_survive_account_deletion(db_url):
     assert t["registered"] == 1 and t["searches_7d"] == 1       # the search still counts, anonymously
     with store.engine.connect() as conn:
         assert conn.execute(db.events.select().where(db.events.c.kind == "search")).mappings().one()["user_id"] is None
+
+
+def test_admin_shows_names(db_url):
+    new = make(db_url)
+    owner = user(new, "owner@example.com")
+    people = owner.get("/api/admin/stats").json()["users"]
+    assert (people[0]["first_name"], people[0]["last_name"]) == ("Test", "User")
+    assert '"adm_name": "שם"' in owner.get("/admin").text  # the column title reaches the page
